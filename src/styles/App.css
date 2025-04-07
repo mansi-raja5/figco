@@ -1,0 +1,95 @@
+/* General Styles */
+.App {
+    font-family: Arial, sans-serif;
+  }
+  
+  h1 {
+    font-size: 2rem;
+    margin-bottom: 20px;
+  }
+  
+  h2 {
+    font-size: 1.5rem;
+    margin-top: 20px;
+  }
+  
+  /* Header Styles */
+  .header {
+    background-color: #4CAF50;
+    padding: 10px;
+    color: white;
+    text-align: center;
+  }
+  
+  /* File Input Section */
+  .file-input-section {
+    margin-top: 20px;
+  }
+  
+  input {
+    padding: 10px;
+    font-size: 1rem;
+    width: 100%;
+    margin-bottom: 10px;
+    border-radius: 5px;
+    border: 1px solid #ddd;
+  }
+  
+  /* Image Section */
+  .image-section img {
+    max-width: 100%;
+    height: auto;
+    border: 2px solid #ddd;
+    margin-top: 20px;
+  }
+  
+  /* JSON Section */
+  .generate-json-section {
+    margin-top: 20px;
+  }
+  
+  button {
+    background-color: #4CAF50;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    font-size: 1rem;
+    cursor: pointer;
+    border-radius: 5px;
+  }
+  
+  button:hover {
+    background-color: #45a049;
+  }
+  
+  /* Code Generation Section */
+  .code-generation-section {
+    margin-top: 20px;
+  }
+  
+  select {
+    padding: 10px;
+    font-size: 1rem;
+    margin-top: 10px;
+  }
+  
+  /* Download Section */
+  .download-btn {
+    background-color: #4CAF50;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    cursor: pointer;
+    border-radius: 5px;
+  }
+  
+  /* Quality Section */
+  .validate-btn {
+    background-color: #FF9800;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    cursor: pointer;
+    border-radius: 5px;
+  }
+  

@@ -1,23 +1,41 @@
-import logo from './logo.svg';
-import './App.css';
+import React, { useState } from 'react';
+import Header from './components/Header';
+import InputRow from './components/InputRow';
+import MainContent from './components/MainContent';
+import './styles/main.css';
 
 function App() {
+  const [imageUrl, setImageUrl] = useState(null);
+  const [jsonData, setJsonData] = useState(null);
+  const [folderStructure, setFolderStructure] = useState(null);
+
+  const handleCodeGenerate = (code) => {
+    console.log('Generated Code:', code);
+    // You can update the code section in MainContent here
+  };
+
+  const handleCodeQuality = () => {
+    console.log('Code Quality Check');
+    // Add your code quality logic here
+  };
+
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
+    <div className="app">
+      <Header />
+      <InputRow 
+        onImageLoad={setImageUrl} 
+        onJsonLoad={setJsonData}
+        onCodeGenerate={handleCodeGenerate}
+        onFolderUpload={setFolderStructure}
+      />
+      <MainContent 
+        imageUrl={imageUrl}
+        jsonData={jsonData}
+        folderStructure={folderStructure}
+      />
+      <footer className="footer">
+        <button>Generate Code</button>
+      </footer>
     </div>
   );
 }
