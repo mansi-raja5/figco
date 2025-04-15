@@ -1,0 +1,50 @@
+.file-tree {
+  font-family: monospace;
+  padding: 10px;
+}
+
+.tree-item {
+  margin: 2px 0;
+}
+
+.folder {
+  margin-left: 5px;
+}
+
+.folder-name {
+  cursor: pointer;
+  user-select: none;
+  display: inline-block;
+  padding: 2px 5px;
+}
+
+.folder-name:hover {
+  background-color: #f0f0f0;
+  border-radius: 3px;
+}
+
+.folder-contents {
+  display: none;
+  margin-left: 20px;
+  border-left: 1px solid #ddd;
+  padding-left: 10px;
+}
+
+.folder-contents.expanded {
+  display: block;
+}
+
+.file {
+  margin-left: 25px;
+  cursor: pointer;
+  padding: 2px 5px;
+}
+
+.file:hover {
+  background-color: #f0f0f0;
+  border-radius: 3px;
+}
+
+.file-name {
+  user-select: none;
+} 

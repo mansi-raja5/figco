@@ -1,61 +1,60 @@
 import React, { useState } from 'react';
+import './FileTree.css';
 
-const FileTree = ({ files, onFileSelect }) => {
+const FileTree = ({ structure = [], onFileSelect }) => {
   const [expandedFolders, setExpandedFolders] = useState(new Set());
-  const [selectedFile, setSelectedFile] = useState(null);
 
   const toggleFolder = (path) => {
-    const newExpanded = new Set(expandedFolders);
-    if (newExpanded.has(path)) {
-      newExpanded.delete(path);
-    } else {
-      newExpanded.add(path);
+    setExpandedFolders(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(path)) {
+        newSet.delete(path);
+      } else {
+        newSet.add(path);
+      }
+      return newSet;
+    });
+  };
+
+  const renderTree = (items = []) => {
+    if (!Array.isArray(items)) {
+      return null;
     }
-    setExpandedFolders(newExpanded);
-  };
 
-  const handleFileClick = (file) => {
-    setSelectedFile(file.path);
-    onFileSelect(file);
-  };
+    return items.map((item, index) => {
+      if (!item) return null;
+      const isExpanded = expandedFolders.has(item.path);
 
-  const renderTree = (items, level = 0) => {
-    return (
-      <ul className={`file-tree-list ${level === 0 ? 'root' : ''}`}>
-        {items.map((item) => (
-          <li key={item.path} className="file-tree-item">
-            {item.type === 'folder' ? (
-              <div className="folder-item">
-                <button 
-                  className="folder-button"
-                  onClick={() => toggleFolder(item.path)}
-                >
-                  <span className="folder-icon">
-                    {expandedFolders.has(item.path) ? '📂' : '📁'}
-                  </span>
-                  {item.name}
-                </button>
-                {expandedFolders.has(item.path) && item.children && 
-                  renderTree(item.children, level + 1)}
-              </div>
-            ) : (
-              <button 
-                className={`file-button ${selectedFile === item.path ? 'selected' : ''}`}
-                onClick={() => handleFileClick(item)}
+      return (
+        <div key={`${item.path}-${index}`} className="tree-item">
+          {item.type === 'folder' ? (
+            <div className="folder">
+              <span 
+                className="folder-name"
+                onClick={() => toggleFolder(item.path)}
               >
-                <span className="file-icon">📄</span>
-                {item.name}
-              </button>
-            )}
-          </li>
-        ))}
-      </ul>
-    );
+                {isExpanded ? '📂' : '📁'} {item.name}
+              </span>
+              <div className={`folder-contents ${isExpanded ? 'expanded' : ''}`}>
+                {isExpanded && item.children && renderTree(item.children)}
+              </div>
+            </div>
+          ) : (
+            <div 
+              className="file"
+              onClick={() => onFileSelect && onFileSelect(item)}
+            >
+              <span className="file-name">📄 {item.name}</span>
+            </div>
+          )}
+        </div>
+      );
+    });
   };
 
   return (
     <div className="file-tree">
-      {renderTree(files)}
+      {renderTree(structure)}
     </div>
   );
 };

@@ -76,13 +76,27 @@ const InputRow = ({ onImageLoad, onJsonLoad, onCodeGenerate, onFolderUpload }) =
 
     setGeneratingCode(true);
     try {
-      console.log('Generating code with JSON:', jsonData); // Debug log
-      const generatedCode = await generateReactCode(jsonData);
-      console.log('Generated code result:', generatedCode); // Debug log
-      onCodeGenerate(generatedCode);
+      const result = await generateReactCode(jsonData, 'FigmaComponent');
+      if (result.success) {
+        console.log('Code generated successfully at:', result.path);
+        
+        try {
+          // Use the base directory path instead of the file path
+          const basePath = '/var/www/figco/generated_code';
+          const files = await fetch(`/api/readDirectory?path=${encodeURIComponent(basePath)}`);
+          const structure = await files.json();
+          
+          // Pass the actual directory structure to parent component
+          onFolderUpload([structure]); // Wrap in array to match UI import format
+          onCodeGenerate(result);
+        } catch (error) {
+          console.error('Error reading directory structure:', error);
+        }
+      } else {
+        console.error('Error generating code:', result.error);
+      }
     } catch (error) {
       console.error('Error generating code:', error);
-      // You might want to show an error message to the user here
     } finally {
       setGeneratingCode(false);
     }
@@ -250,26 +264,27 @@ const InputRow = ({ onImageLoad, onJsonLoad, onCodeGenerate, onFolderUpload }) =
         </div>
         <div className="separator"></div>
         <div className="framework-section">
-          <label>Select Framework</label>
-          <div className="framework-controls">
-            <select 
-              value={selectedFramework}
-              onChange={(e) => setSelectedFramework(e.target.value)}
-              className="framework-select"
-            >
-              {frameworks.map(framework => (
-                <option key={framework.value} value={framework.value}>
-                  {framework.label}
-                </option>
-              ))}
-            </select>
-            <button 
-              className="generate-button"
-              onClick={handleGenerateCode}
-              disabled={generatingCode || !jsonData}
-            >
-              {generatingCode ? 'Generating...' : 'Generate Code'}
-            </button>
+          <div className="input-group">
+            <label>Select Framework to genrate code from figco</label>
+            <div className="framework-controls">
+              <select 
+                className="framework-select"
+                value={selectedFramework}
+                onChange={(e) => setSelectedFramework(e.target.value)}
+              >
+                <option value="react">React JS</option>
+                <option value="vue">Vue JS</option>
+                <option value="angular">Angular JS</option>
+                <option value="html">HTML/CSS</option>
+              </select>
+              <button 
+                className="generate-button"
+                onClick={handleGenerateCode}
+                disabled={!jsonData}
+              >
+                Generate Code
+              </button>
+            </div>
           </div>
         </div>
         <div className="separator"></div>

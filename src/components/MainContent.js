@@ -22,11 +22,27 @@ const MainContent = ({ imageUrl, jsonData, folderStructure, onCodeQuality }) => 
 
   const handleFileSelect = async (file) => {
     try {
-      const content = await file.file.text();
-      setSelectedFileContent(content);
       setSelectedFileName(file.name);
+      
+      // If file has content property, it's from memory (Import UI)
+      if (file.file) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          setSelectedFileContent(e.target.result);
+        };
+        reader.readAsText(file.file);
+        return;
+      }
+
+      // If file doesn't have content, it's from generated code (API)
+      if (file.path.startsWith('/var/www/figco/generated_code')) {
+        const response = await fetch(`/api/readFile?path=${encodeURIComponent(file.path)}`);
+        const data = await response.json();
+        setSelectedFileContent(data.content);
+      }
     } catch (error) {
       console.error('Error reading file:', error);
+      setSelectedFileContent('Error loading file content');
     }
   };
 
@@ -36,6 +52,11 @@ const MainContent = ({ imageUrl, jsonData, folderStructure, onCodeQuality }) => 
       onCodeQuality();
     }
   };
+
+  // Add this check to ensure folderStructure is always an array
+  const normalizedFolderStructure = Array.isArray(folderStructure) 
+    ? folderStructure 
+    : folderStructure ? [folderStructure] : [];
 
   return (
     <>
@@ -116,11 +137,11 @@ const MainContent = ({ imageUrl, jsonData, folderStructure, onCodeQuality }) => 
             </button>
           </div>
           <div className="code-container">
-            {folderStructure ? (
+            {normalizedFolderStructure.length > 0 ? (
               <div className="file-explorer">
                 <div className="file-tree-container">
                   <FileTree 
-                    files={folderStructure} 
+                    structure={normalizedFolderStructure} 
                     onFileSelect={handleFileSelect}
                   />
                 </div>

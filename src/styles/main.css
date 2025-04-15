@@ -1,7 +1,7 @@
 .input-row {
   display: flex;
   gap: 1.5rem;
-  padding: 1.5rem;
+  padding: 10px 1.5rem;
   background: #f5f5f5;
   align-items: flex-end;
 }
@@ -17,13 +17,13 @@
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
-  max-width: 200px;
 }
 
 .input-group label {
   font-size: 0.8rem;
   color: #666;
   font-weight: 500;
+  margin-bottom: 0.25rem;
 }
 
 .input-field {
@@ -183,18 +183,17 @@
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
-  min-width: 400px; /* Increased to fit both elements */
+  min-width: 400px;
 }
 
 .framework-controls {
   display: flex;
   gap: 1rem;
   align-items: center;
-  flex-direction: row; /* Ensure horizontal layout */
 }
 
 .framework-select {
-  flex: 1; /* Take available space */
+  flex: 1;
   padding: 0.5rem;
   border: 1px solid #ddd;
   border-radius: 4px;
@@ -285,10 +284,8 @@
   font-weight: 500;
   min-width: 120px;
   height: 37px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  white-space: nowrap; /* Prevent text wrapping */
+  white-space: nowrap;
+  transition: background 0.2s ease;
 }
 
 .generate-button:hover {

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import Header from './components/Header';
-import InputRow from './components/InputRow';
-import MainContent from './components/MainContent';
+import Header from './components/Header.js';
+import InputRow from './components/InputRow.js';
+import MainContent from './components/MainContent.js';
 import './styles/main.css';
 
 function App() {
@@ -33,9 +33,6 @@ function App() {
         jsonData={jsonData}
         folderStructure={folderStructure}
       />
-      <footer className="footer">
-        <button>Generate Code</button>
-      </footer>
     </div>
   );
 }
