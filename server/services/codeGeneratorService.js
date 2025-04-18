@@ -212,21 +212,28 @@ const transformImageProperties = (imageNode) => {
   return imageProps;
 };
 
-const generateImageComponent = (imageNode, componentName) => {
-  const props = transformImageProperties(imageNode);
+const generateImageComponent = (imageNodes, componentName) => {
+  // Transform all image nodes to get their properties
+  const images = imageNodes.map(node => transformImageProperties(node));
   
   return `
 import React from 'react';
 import './${componentName}.css';
 
 const ${componentName} = () => {
+  const images = ${JSON.stringify(images, null, 2)};
+
   return (
-    <div className="image-container">
-      <img
-        src={'/images/Image_${props.imageRef}.png'}
-        alt="${componentName}"
-        className="styled-image"
-      />
+    <div className="images-grid">
+      {images.map((image, index) => (
+        <div key={index} className="image-container">
+          <img
+            src={'/images/Image_' + image.imageRef + '.png'}
+            alt={\`Image \${index + 1}\`}
+            className="styled-image"
+          />
+        </div>
+      ))}
     </div>
   );
 };
@@ -235,12 +242,12 @@ export default ${componentName};
 `.trim();
 };
 
-// Modified generateReactComponent to handle image components
+// Modified generateReactComponent to handle multiple images
 const generateReactComponent = (figmaJson, componentName) => {
-  const imageNodes = findImageNodes(figmaJson.document, console);
+  const imageNodes = findImageNodes(figmaJson.document);
   
   if (imageNodes.length > 0) {
-    return generateImageComponent(imageNodes[0], componentName);
+    return generateImageComponent(imageNodes, componentName);
   }
 
   return `
@@ -262,6 +269,16 @@ export default ${componentName};
 const generateStyles = (figmaJson) => {
   return `
 /* Generated styles */
+.images-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(393px, 1fr));
+  gap: 32px;
+  padding: 20px;
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
 .image-container {
   width: 100%;
   max-width: 393px;
@@ -269,6 +286,7 @@ const generateStyles = (figmaJson) => {
   border-radius: 8px;
   overflow: hidden;
   position: relative;
+  margin: 0 auto;
 }
 
 .styled-image {
