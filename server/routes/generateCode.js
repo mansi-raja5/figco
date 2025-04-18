@@ -6,25 +6,68 @@ const fs = require('fs').promises;
 
 const router = express.Router();
 
+// Create a logging utility
+const logs = [];
+const customLogger = {
+  log: (...args) => {
+    const message = args.map(arg => 
+      typeof arg === 'object' ? JSON.stringify(arg) : arg
+    ).join(' ');
+    logs.push({ type: 'log', message });
+    console.log(...args);
+  },
+  error: (...args) => {
+    const message = args.map(arg => 
+      typeof arg === 'object' ? JSON.stringify(arg) : arg
+    ).join(' ');
+    logs.push({ type: 'error', message });
+    console.error(...args);
+  }
+};
+
 router.post('/generate', async (req, res) => {
   try {
-    console.log('Received generate request:', req.body);
+    // Clear previous logs
+    logs.length = 0;
+    
+    customLogger.log('Received generate request');
     const { figmaJson, componentName } = req.body;
     
     if (!figmaJson) {
       return res.status(400).json({
         success: false,
-        error: 'figmaJson is required'
+        error: 'figmaJson is required',
+        logs
       });
     }
 
-    const result = await generateReactCode(figmaJson, componentName);
-    res.json(result);
+    // Check if images directory exists
+    const imagesDir = path.join(__dirname, '../../generated_code/images');
+    try {
+      await fs.access(imagesDir);
+      const files = await fs.readdir(imagesDir);
+      customLogger.log('Images directory contents:', files);
+    } catch (error) {
+      customLogger.error('Error accessing images directory:', error.message);
+    }
+
+    // Pass the custom logger to generateReactCode
+    const result = await generateReactCode(figmaJson, componentName, customLogger);
+    
+    // Add logs to the response
+    const response = {
+      ...result,
+      logs: logs
+    };
+    
+    customLogger.log('Sending response with logs:', response);
+    res.json(response);
   } catch (error) {
-    console.error('Error in generate route:', error);
+    customLogger.error('Error in generate route:', error);
     res.status(500).json({
       success: false,
-      error: error.message
+      error: error.message,
+      logs
     });
   }
 });
