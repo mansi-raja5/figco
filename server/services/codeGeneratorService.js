@@ -81,11 +81,10 @@ const generateReactCode = async (figmaJson, componentName = 'FigmaComponent', lo
   try {
     logger.log('Starting code generation for component:', componentName);
     
-    // Use absolute path to ensure correct file location
     const baseDir = path.resolve(__dirname, '../../generated_code/reactapp');
     logger.log('Base directory:', baseDir);
 
-    // Create all necessary directories first
+    // Create directories
     const directories = [
       baseDir,
       path.join(baseDir, 'src'),
@@ -94,7 +93,6 @@ const generateReactCode = async (figmaJson, componentName = 'FigmaComponent', lo
       path.join(baseDir, 'public/images')
     ];
 
-    // Create directories synchronously
     for (const dir of directories) {
       try {
         if (!fs.existsSync(dir)) {
@@ -107,7 +105,7 @@ const generateReactCode = async (figmaJson, componentName = 'FigmaComponent', lo
       }
     }
 
-    // Find all image nodes and collect their refs
+    // Find image nodes and handle images
     logger.log('Finding image nodes in Figma JSON...');
     const imageNodes = findImageNodes(figmaJson.document, logger);
     const imageRefs = imageNodes.map(node => {
@@ -116,22 +114,30 @@ const generateReactCode = async (figmaJson, componentName = 'FigmaComponent', lo
       return ref;
     }).filter(Boolean);
 
-    // Copy images to public directory
     if (imageRefs.length > 0) {
       logger.log('Copying images to public directory...');
       await copyImagesToPublic(imageRefs, baseDir, logger);
-    } else {
-      logger.log('No image references found to copy');
     }
 
-    // Define all files to be created
+    // Find the Test frame
+    const testFrame = findTestFrame(figmaJson.document);
+    if (!testFrame) {
+      throw new Error('Test frame not found in Figma document');
+    }
+
+    // Generate the CSS first
+    logger.log('Generating CSS...');
+    const cssContent = generateStyles(testFrame);
+    logger.log('CSS content generated:', cssContent);
+
+    // Define files to create
     const files = [
       {
         content: generateReactComponent(figmaJson, componentName),
         path: path.join(baseDir, 'src/components', `${componentName}.js`)
       },
       {
-        content: generateStyles(figmaJson),
+        content: cssContent,
         path: path.join(baseDir, 'src/components', `${componentName}.css`)
       },
       {
@@ -148,11 +154,12 @@ const generateReactCode = async (figmaJson, componentName = 'FigmaComponent', lo
       }
     ];
 
-    // Save all files synchronously
+    // Save all files
     const savedFiles = {};
     for (const file of files) {
       try {
         logger.log('Writing file:', file.path);
+        logger.log('File content:', file.content);
         await fs.promises.writeFile(file.path, file.content, 'utf8');
         logger.log('File written successfully:', file.path);
         savedFiles[path.basename(file.path)] = file.path;
@@ -242,14 +249,281 @@ export default ${componentName};
 `.trim();
 };
 
-// Modified generateReactComponent to handle multiple images
-const generateReactComponent = (figmaJson, componentName) => {
-  const imageNodes = findImageNodes(figmaJson.document);
+// Meta-model transformation helpers
+const transformLayoutProps = (node) => {
+  if (!node) return {};
   
-  if (imageNodes.length > 0) {
-    return generateImageComponent(imageNodes, componentName);
+  const layout = {
+    display: 'block',
+    flexDirection: 'column',
+    gap: 0,
+    padding: 0,
+    width: '100%',
+    height: 'auto'
+  };
+
+  if (node.layoutMode && typeof node.layoutMode === 'string') {
+    const isHorizontal = node.layoutMode.toLowerCase() === 'horizontal';
+    layout.display = isHorizontal ? 'flex' : 'block';
+    layout.flexDirection = isHorizontal ? 'row' : 'column';
   }
 
+  if (typeof node.itemSpacing === 'number') {
+    layout.gap = node.itemSpacing;
+  }
+
+  if (typeof node.padding === 'number') {
+    layout.padding = node.padding;
+  }
+
+  if (node.absoluteBoundingBox) {
+    if (typeof node.absoluteBoundingBox.width === 'number') {
+      layout.width = `${node.absoluteBoundingBox.width}px`;
+    }
+    if (typeof node.absoluteBoundingBox.height === 'number') {
+      layout.height = `${node.absoluteBoundingBox.height}px`;
+    }
+  }
+
+  return layout;
+};
+
+const transformTextStyles = (node) => {
+  if (!node) return {};
+
+  const styles = {
+    fontSize: 'inherit',
+    fontWeight: 'normal',
+    fontFamily: 'inherit',
+    lineHeight: 'normal',
+    color: 'inherit'
+  };
+
+  if (node.style) {
+    if (typeof node.style.fontSize === 'number') {
+      styles.fontSize = `${node.style.fontSize}px`;
+    }
+    if (node.style.fontWeight) {
+      styles.fontWeight = node.style.fontWeight;
+    }
+    if (node.style.fontFamily) {
+      styles.fontFamily = node.style.fontFamily;
+    }
+    if (typeof node.style.lineHeightPx === 'number') {
+      styles.lineHeight = `${node.style.lineHeightPx}px`;
+    }
+  }
+
+  if (node.fills && node.fills[0] && node.fills[0].color) {
+    const color = node.fills[0].color;
+    styles.color = `rgb(${Math.round(color.r * 255)}, ${Math.round(color.g * 255)}, ${Math.round(color.b * 255)})`;
+  }
+
+  return styles;
+};
+
+const generateNodeStyles = (node) => {
+  if (!node) return {};
+
+  let styles = {};
+
+  try {
+    if (node.type === 'FRAME') {
+      const layout = transformLayoutProps(node);
+      styles = {
+        ...layout,
+        backgroundColor: 'transparent',
+        borderRadius: '0',
+        overflow: 'visible'
+      };
+
+      if (node.backgroundColor) {
+        styles.backgroundColor = `rgba(${Math.round(node.backgroundColor.r * 255)}, ${Math.round(node.backgroundColor.g * 255)}, ${Math.round(node.backgroundColor.b * 255)}, ${node.backgroundColor.a})`;
+      }
+
+      if (typeof node.cornerRadius === 'number') {
+        styles.borderRadius = `${node.cornerRadius}px`;
+      }
+
+      if (typeof node.clipsContent === 'boolean') {
+        styles.overflow = node.clipsContent ? 'hidden' : 'visible';
+      }
+    } else if (node.type === 'TEXT') {
+      styles = transformTextStyles(node);
+    }
+  } catch (error) {
+    console.error('Error generating styles for node:', error);
+  }
+
+  return styles;
+};
+
+const generateStylesString = (styles) => {
+  if (!styles || typeof styles !== 'object') return '';
+  
+  return Object.entries(styles)
+    .filter(([_, value]) => value !== undefined && value !== null && value !== '')
+    .map(([key, value]) => {
+      // Convert camelCase to kebab-case
+      const cssKey = key.replace(/([A-Z])/g, '-$1').toLowerCase();
+      return `${cssKey}: ${value};`;
+    })
+    .join('\n  ');
+};
+
+const generateNodeComponent = (node, depth = 0) => {
+  if (!node || typeof node !== 'object') return '';
+  
+  const indent = '  '.repeat(depth);
+  const styles = generateNodeStyles(node);
+  const nodeType = (node.type && typeof node.type === 'string') ? node.type.toLowerCase() : 'div';
+  const nodeId = (node.id && typeof node.id === 'string') ? node.id.replace(':', '-') : Date.now().toString();
+  const className = `node-${nodeType}-${nodeId}`;
+
+  let component = '';
+
+  try {
+    // Check if this is a frame that contains an image
+    const hasImageFill = node.fills?.[0]?.type === 'IMAGE' || node.background?.[0]?.type === 'IMAGE';
+    const imageRef = node.fills?.[0]?.imageRef || node.background?.[0]?.imageRef;
+
+    switch (node.type) {
+      case 'FRAME':
+        if (hasImageFill && imageRef && typeof imageRef === 'string') {
+          // This is a frame with an image fill, render as img
+          component = `${indent}<img 
+${indent}  src={'/images/Image_${imageRef}.png'}
+${indent}  alt="${(node.name && typeof node.name === 'string') ? node.name : 'Image'}"
+${indent}  className="${className}"
+${indent}/>`;
+        } else {
+          // Regular frame, render as div with children
+          const childrenContent = Array.isArray(node.children) 
+            ? node.children.map(child => generateNodeComponent(child, depth + 1)).join('\n') 
+            : '';
+          component = `${indent}<div className="${className}">
+${childrenContent}
+${indent}</div>`;
+        }
+        break;
+
+      case 'TEXT':
+        const text = node.characters && typeof node.characters === 'string' ? node.characters : '';
+        component = `${indent}<p className="${className}">${text}</p>`;
+        break;
+
+      default:
+        const defaultChildrenContent = Array.isArray(node.children)
+          ? node.children.map(child => generateNodeComponent(child, depth + 1)).join('\n')
+          : '';
+        component = `${indent}<div className="${className}">
+${defaultChildrenContent}
+${indent}</div>`;
+    }
+  } catch (error) {
+    console.error('Error generating component for node:', error);
+    component = `${indent}<div className="${className}"></div>`;
+  }
+
+  return component;
+};
+
+const generateStyles = (node) => {
+  if (!node || typeof node !== 'object') return '';
+
+  let styles = [];
+  console.log('Starting style generation for node:', node.name || 'unnamed node');
+  
+  const processNode = (node) => {
+    if (!node || typeof node !== 'object') return;
+
+    try {
+      const nodeType = (node.type && typeof node.type === 'string') ? node.type.toLowerCase() : 'div';
+      const nodeId = (node.id && typeof node.id === 'string') ? node.id.replace(':', '-') : Date.now().toString();
+      const className = `node-${nodeType}-${nodeId}`;
+      const nodeStyles = generateNodeStyles(node);
+      
+      console.log('Generated styles for node:', {
+        name: node.name,
+        type: nodeType,
+        className,
+        styles: nodeStyles
+      });
+      
+      if (Object.keys(nodeStyles).length > 0) {
+        const styleString = generateStylesString(nodeStyles);
+        console.log('Style string generated:', styleString);
+        
+        if (styleString.trim()) {
+          styles.push(`.${className} {
+  ${styleString}
+}`);
+        }
+      }
+
+      if (Array.isArray(node.children)) {
+        node.children.forEach(processNode);
+      }
+    } catch (error) {
+      console.error('Error processing styles for node:', error);
+    }
+  };
+
+  processNode(node);
+  const finalStyles = styles.join('\n\n');
+  console.log('Final CSS generated:', finalStyles);
+  return finalStyles;
+};
+
+const findTestFrame = (document) => {
+  if (!document) return null;
+  
+  let testFrame = null;
+  
+  const findNode = (node) => {
+    if (!node) return;
+    
+    if (node.name === 'Test' && node.type === 'FRAME') {
+      testFrame = node;
+      return;
+    }
+    if (node.children && Array.isArray(node.children)) {
+      node.children.forEach(findNode);
+    }
+  };
+
+  findNode(document);
+  return testFrame;
+};
+
+const generateReactComponent = (figmaJson, componentName) => {
+  try {
+    const testFrame = findTestFrame(figmaJson.document);
+    
+    if (!testFrame) {
+      console.error('Test frame not found in Figma document');
+      return generateDefaultComponent(componentName);
+    }
+
+    return `
+import React from 'react';
+import './${componentName}.css';
+
+const ${componentName} = () => {
+  return (
+${generateNodeComponent(testFrame, 2)}
+  );
+};
+
+export default ${componentName};
+`.trim();
+  } catch (error) {
+    console.error('Error in generateReactComponent:', error);
+    return generateDefaultComponent(componentName);
+  }
+};
+
+const generateDefaultComponent = (componentName) => {
   return `
 import React from 'react';
 import './${componentName}.css';
@@ -263,38 +537,6 @@ const ${componentName} = () => {
 };
 
 export default ${componentName};
-`.trim();
-};
-
-const generateStyles = (figmaJson) => {
-  return `
-/* Generated styles */
-.images-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(393px, 1fr));
-  gap: 32px;
-  padding: 20px;
-  width: 100%;
-  max-width: 1400px;
-  margin: 0 auto;
-}
-
-.image-container {
-  width: 100%;
-  max-width: 393px;
-  height: 405px;
-  border-radius: 8px;
-  overflow: hidden;
-  position: relative;
-  margin: 0 auto;
-}
-
-.styled-image {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
 `.trim();
 };
 
