@@ -4,7 +4,7 @@ const FIGMA_TOKEN = 'your-personal-access-token';
 
 export const fetchFigmaFile = async (fileKey, accessToken) => {
   const url = `https://api.figma.com/v1/files/${fileKey}`;
-  const headers = { 'X-Figma-Token': accessToken };
+  const headers = { 'X-Figma-Token': accessToken};
 
   const response = await axios.get(url, { headers });
   return response.data;

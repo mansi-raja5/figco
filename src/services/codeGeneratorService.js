@@ -39,4 +39,27 @@ export const generateReactCode = async (figmaJson, componentName = 'FigmaCompone
     console.error('Error generating code:', error);
     throw error;
   }
+};
+
+export const runReactApp = async () => {
+  try {
+    const response = await fetch('http://localhost:3002/api/run-app', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(`HTTP error! status: ${response.status}, message: ${JSON.stringify(errorData)}`);
+    }
+
+    const data = await response.json();
+    console.log('Run app response:', data);
+    return data;
+  } catch (error) {
+    console.error('Error running React app:', error);
+    throw error;
+  }
 }; 

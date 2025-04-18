@@ -131,6 +131,18 @@
   background: #ccc;
 }
 
+.image-button {
+  background: #e74c3c; /* Different color for image button */
+}
+
+.image-button:hover {
+  background: #c0392b;
+}
+
+.image-button:disabled {
+  background: #ccc;
+}
+
 .image-container {
   flex: 1;
   width: 100%;
@@ -805,4 +817,4 @@
   background: #f0fff4;
   border-radius: 4px;
   margin: 0;
-} 
+}

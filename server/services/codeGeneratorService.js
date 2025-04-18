@@ -1,42 +1,93 @@
 const fs = require('fs');
 const path = require('path');
+const util = require('util');
+const mkdir = util.promisify(fs.mkdir);
+const writeFile = util.promisify(fs.writeFile);
 
 const generateReactCode = async (figmaJson, componentName = 'FigmaComponent') => {
   try {
-    const baseDir = path.join(__dirname, '../../generated_code/reactapp');
+    // Use absolute path to ensure correct file location
+    const baseDir = path.resolve(__dirname, '../../generated_code/reactapp');
     console.log('Generating code in:', baseDir);
+    console.log('Current directory:', __dirname);
 
-    // Create directories
-    await fs.promises.mkdir(baseDir, { recursive: true });
-    await fs.promises.mkdir(path.join(baseDir, 'src'), { recursive: true });
-    await fs.promises.mkdir(path.join(baseDir, 'src/components'), { recursive: true });
+    // Create all necessary directories first
+    const directories = [
+      baseDir,
+      path.join(baseDir, 'src'),
+      path.join(baseDir, 'src/components'),
+      path.join(baseDir, 'public')
+    ];
 
-    // Generate component file
-    const componentContent = `
-import React from 'react';
+    // Create directories synchronously
+    directories.forEach(dir => {
+      try {
+        if (!fs.existsSync(dir)) {
+          console.log('Creating directory:', dir);
+          fs.mkdirSync(dir, { recursive: true });
+          console.log('Directory created successfully:', dir);
+        } else {
+          console.log('Directory already exists:', dir);
+        }
+      } catch (error) {
+        console.error(`Error creating directory ${dir}:`, error);
+        throw error;
+      }
+    });
 
-const ${componentName} = () => {
-  return (
-    <div>
-      <h1>Generated Component</h1>
-      <pre>{JSON.stringify(${JSON.stringify(figmaJson, null, 2)}, null, 2)}</pre>
-    </div>
-  );
-};
+    // Define all files to be created
+    const files = [
+      {
+        content: generateReactComponent(figmaJson, componentName),
+        path: path.join(baseDir, 'src/components', `${componentName}.js`)
+      },
+      {
+        content: generateStyles(figmaJson),
+        path: path.join(baseDir, 'src/components', `${componentName}.css`)
+      },
+      {
+        content: generateIndexFile(componentName),
+        path: path.join(baseDir, 'src', 'index.js')
+      },
+      {
+        content: generateIndexHtml(),
+        path: path.join(baseDir, 'public', 'index.html')
+      },
+      {
+        content: generatePackageJson(),
+        path: path.join(baseDir, 'package.json')
+      }
+    ];
 
-export default ${componentName};
-    `.trim();
+    // Save all files synchronously
+    const savedFiles = {};
+    files.forEach(file => {
+      try {
+        console.log('Writing file:', file.path);
+        console.log('File content preview:', file.content.substring(0, 100) + '...');
+        fs.writeFileSync(file.path, file.content, 'utf8');
+        console.log('File written successfully:', file.path);
+        savedFiles[path.basename(file.path)] = file.path;
+      } catch (error) {
+        console.error(`Error creating ${file.path}:`, error);
+        throw error;
+      }
+    });
 
-    const componentPath = path.join(baseDir, 'src/components', `${componentName}.js`);
-    await fs.promises.writeFile(componentPath, componentContent);
+    // Verify all files were created
+    const missingFiles = files.filter(file => !fs.existsSync(file.path));
+    if (missingFiles.length > 0) {
+      throw new Error(`Failed to create files: ${missingFiles.map(f => f.path).join(', ')}`);
+    }
 
     return {
       success: true,
-      message: 'Code generated successfully',
-      path: componentPath
+      message: 'React application generated successfully',
+      path: baseDir,
+      files: savedFiles
     };
   } catch (error) {
-    console.error('Error generating code:', error);
+    console.error('Error in generateReactCode:', error);
     throw error;
   }
 };

@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const generateCodeRouter = require('./routes/generateCode');
+const imageHandlingRouter = require('./routes/imageHandling');
 
 const app = express();
 const PORT = process.env.PORT || 3002;
@@ -21,6 +22,7 @@ app.use((req, res, next) => {
 
 // Routes
 app.use('/api', generateCodeRouter);
+app.use('/api', imageHandlingRouter);
 
 // Serve the generated code directory
 app.use('/generated_code', express.static(path.join(__dirname, '..', 'generated_code')));

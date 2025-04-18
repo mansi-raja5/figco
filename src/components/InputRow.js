@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { exportFigmaImage, fetchFigmaFile } from '../services/figmaService';
-import { generateReactCode } from '../services/codeGeneratorService';
+import { generateReactCode, runReactApp } from '../services/codeGeneratorService';
 import FileTree from './FileTree';
 
 const InputRow = ({ onImageLoad, onJsonLoad, onCodeGenerate, onFolderUpload }) => {
@@ -17,10 +17,12 @@ const InputRow = ({ onImageLoad, onJsonLoad, onCodeGenerate, onFolderUpload }) =
   const [selectedFramework, setSelectedFramework] = useState('react');
   const [loadingFigma, setLoadingFigma] = useState(false);
   const [loadingJson, setLoadingJson] = useState(false);
+  const [loadingImages, setLoadingImages] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [generatingCode, setGeneratingCode] = useState(false);
   const [jsonData, setJsonData] = useState(null);
   const [showUpload, setShowUpload] = useState(false);
+  const [runningApp, setRunningApp] = useState(false);
 
   const frameworks = [
     { value: 'react', label: 'React JS' },
@@ -68,6 +70,95 @@ const InputRow = ({ onImageLoad, onJsonLoad, onCodeGenerate, onFolderUpload }) =
     }
   };
 
+  const handleLoadImages = async () => {
+    if (!jsonData) {
+      console.error('No JSON data available');
+      return;
+    }
+
+    setLoadingImages(true);
+    try {
+      // Create images directory if it doesn't exist
+      try {
+        await fetch('/api/createDirectory', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            path: '/var/www/figco/generated_code/images'
+          })
+        });
+      } catch (error) {
+        console.error('Error creating images directory:', error);
+        return;
+      }
+
+      // Extract all image references and their parent node IDs from the JSON data
+      const imageNodes = [];
+      const findImageNodes = (node) => {
+        if (node.background && Array.isArray(node.background)) {
+          node.background.forEach(bg => {
+            if (bg.type === 'IMAGE' && bg.imageRef) {
+              imageNodes.push({
+                nodeId: node.id,
+                imageRef: bg.imageRef,
+                name: `${node.name || 'image'}_${bg.imageRef}.png`.replace(/[^a-zA-Z0-9-_\.]/g, '_')
+              });
+            }
+          });
+        }
+        if (node.children && Array.isArray(node.children)) {
+          node.children.forEach(findImageNodes);
+        }
+      };
+      findImageNodes(jsonData.document);
+
+      // Load and save each image
+      const downloadPromises = imageNodes.map(async ({ nodeId, name }) => {
+        try {
+          const imageUrl = await exportFigmaImage(fileKey, nodeId, accessToken);
+          if (!imageUrl) return null;
+
+          // Download image and save to file
+          const response = await fetch('/api/downloadImage', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              url: imageUrl,
+              path: `/var/www/figco/generated_code/images/${name}`
+            })
+          });
+
+          if (!response.ok) {
+            throw new Error(`Failed to download image: ${response.statusText}`);
+          }
+
+          const result = await response.json();
+          return result.path;
+        } catch (error) {
+          console.error(`Error downloading image ${name}:`, error);
+          return null;
+        }
+      });
+
+      const savedPaths = await Promise.all(downloadPromises);
+      const validPaths = savedPaths.filter(path => path);
+
+      if (validPaths.length > 0) {
+        alert('Successfully downloaded images:', validPaths);
+      } else {
+        console.error('No images were downloaded successfully');
+      }
+    } catch (error) {
+      console.error('Error processing images:', error);
+    } finally {
+      setLoadingImages(false);
+    }
+  };
+
   const handleGenerateCode = async () => {
     if (!jsonData) {
       console.error('No JSON data available');
@@ -99,6 +190,23 @@ const InputRow = ({ onImageLoad, onJsonLoad, onCodeGenerate, onFolderUpload }) =
       console.error('Error generating code:', error);
     } finally {
       setGeneratingCode(false);
+    }
+  };
+
+  const handleRunApp = async () => {
+    setRunningApp(true);
+    try {
+      const result = await runReactApp();
+      if (result.success) {
+        console.log('React app started at:', result.url);
+        window.open(result.url, '_blank');
+      } else {
+        console.error('Failed to start React app:', result.error);
+      }
+    } catch (error) {
+      console.error('Error running React app:', error);
+    } finally {
+      setRunningApp(false);
     }
   };
 
@@ -252,37 +360,54 @@ const InputRow = ({ onImageLoad, onJsonLoad, onCodeGenerate, onFolderUpload }) =
               {loadingFigma ? 'Loading...' : 'Load Figma'}
             </button>
             {imageLoaded && (
-              <button 
-                className="load-button json-button"
-                onClick={handleLoadJson}
-                disabled={loadingJson}
-              >
-                {loadingJson ? 'Loading...' : 'Load JSON'}
-              </button>
+              <>
+                <button 
+                  className="load-button json-button"
+                  onClick={handleLoadJson}
+                  disabled={loadingJson}
+                >
+                  {loadingJson ? 'Loading...' : 'Load JSON'}
+                </button>
+                {jsonData && (
+                  <button 
+                    className="load-button image-button"
+                    onClick={handleLoadImages}
+                    disabled={loadingImages}
+                  >
+                    {loadingImages ? 'Loading...' : 'Load Images'}
+                  </button>
+                )}
+              </>
             )}
           </div>
         </div>
         <div className="separator"></div>
         <div className="framework-section">
           <div className="input-group">
-            <label>Select Framework to genrate code from figco</label>
+            <label>Select Framework</label>
             <div className="framework-controls">
               <select 
                 className="framework-select"
                 value={selectedFramework}
                 onChange={(e) => setSelectedFramework(e.target.value)}
               >
-                <option value="react">React JS</option>
-                <option value="vue">Vue JS</option>
-                <option value="angular">Angular JS</option>
-                <option value="html">HTML/CSS</option>
+                {frameworks.map(fw => (
+                  <option key={fw.value} value={fw.value}>{fw.label}</option>
+                ))}
               </select>
               <button 
                 className="generate-button"
                 onClick={handleGenerateCode}
-                disabled={!jsonData}
+                disabled={!jsonData || generatingCode}
               >
-                Generate Code
+                {generatingCode ? 'Generating...' : 'Generate Code'}
+              </button>
+              <button
+                className="run-button"
+                onClick={handleRunApp}
+                disabled={runningApp || !jsonData}
+              >
+                {runningApp ? 'Starting App...' : 'Run Application'}
               </button>
             </div>
           </div>

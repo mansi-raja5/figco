@@ -1,7 +1,8 @@
 const express = require('express');
 const { generateReactCode } = require('../services/codeGeneratorService');
-const fs = require('fs').promises;
+const { exec } = require('child_process');
 const path = require('path');
+const fs = require('fs').promises;
 
 const router = express.Router();
 
@@ -21,6 +22,60 @@ router.post('/generate', async (req, res) => {
     res.json(result);
   } catch (error) {
     console.error('Error in generate route:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+router.post('/run-app', async (req, res) => {
+  try {
+    const appPath = path.join(__dirname, '../../generated_code/reactapp');
+    
+    // Check if directory exists
+    try {
+      await fs.access(appPath);
+    } catch (error) {
+      throw new Error('React app directory not found. Please generate the code first.');
+    }
+
+    // Run npm install
+    exec('cd ' + appPath + ' && npm install', (error, stdout, stderr) => {
+      if (error) {
+        console.error('Error running npm install:', error);
+        return res.status(500).json({
+          success: false,
+          error: 'Failed to install dependencies: ' + error.message,
+          stdout,
+          stderr
+        });
+      }
+
+      console.log('npm install output:', stdout);
+      
+      // Start the React app
+      exec('cd ' + appPath + ' && npm start', (error, stdout, stderr) => {
+        if (error) {
+          console.error('Error starting React app:', error);
+          return res.status(500).json({
+            success: false,
+            error: 'Failed to start React app: ' + error.message,
+            stdout,
+            stderr
+          });
+        }
+
+        console.log('npm start output:', stdout);
+        res.json({
+          success: true,
+          message: 'React app started successfully',
+          url: 'http://localhost:3000'
+        });
+      });
+    });
+  } catch (error) {
+    console.error('Error in run-app route:', error);
     res.status(500).json({
       success: false,
       error: error.message
