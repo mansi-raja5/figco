@@ -428,72 +428,63 @@ ${indent}</div>`;
   return component;
 };
 
-const generateStyles = (node) => {
-  if (!node || typeof node !== 'object') return '';
+// Add function to extract card data
+const extractCardData = (node) => {
+  if (!node || !node.children) return null;
 
-  let styles = [];
-  console.log('Starting style generation for node:', node.name || 'unnamed node');
+  // Find card components (they follow the pattern of image + copy with text)
+  const cards = [];
   
   const processNode = (node) => {
-    if (!node || typeof node !== 'object') return;
+    if (!node || !node.children) return;
+    
+    // Check if this is a card structure
+    if (node.type === 'FRAME' && node.children.length > 0) {
+      const imageNode = node.children.find(child => 
+        child.type === 'FRAME' && 
+        child.name === 'Image' && 
+        (child.fills?.[0]?.type === 'IMAGE' || child.background?.[0]?.type === 'IMAGE')
+      );
+      
+      const copyNode = node.children.find(child => 
+        child.type === 'FRAME' && 
+        child.name === 'Copy'
+      );
 
-    try {
-      const nodeType = (node.type && typeof node.type === 'string') ? node.type.toLowerCase() : 'div';
-      const nodeId = (node.id && typeof node.id === 'string') ? node.id.replace(':', '-') : Date.now().toString();
-      const className = `node-${nodeType}-${nodeId}`;
-      const nodeStyles = generateNodeStyles(node);
-      
-      console.log('Generated styles for node:', {
-        name: node.name,
-        type: nodeType,
-        className,
-        styles: nodeStyles
-      });
-      
-      if (Object.keys(nodeStyles).length > 0) {
-        const styleString = generateStylesString(nodeStyles);
-        console.log('Style string generated:', styleString);
+      if (imageNode && copyNode) {
+        const headingNode = copyNode.children?.find(child => 
+          child.type === 'TEXT' && 
+          child.name === 'Subheading'
+        );
         
-        if (styleString.trim()) {
-          styles.push(`.${className} {
-  ${styleString}
-}`);
+        const bodyNode = copyNode.children?.find(child => 
+          child.type === 'TEXT' && 
+          child.name.includes('Body text')
+        );
+
+        if (headingNode && bodyNode) {
+          cards.push({
+            id: node.id,
+            imageRef: imageNode.fills?.[0]?.imageRef || imageNode.background?.[0]?.imageRef,
+            heading: headingNode.characters,
+            body: bodyNode.characters,
+            imageClassName: `node-frame-${imageNode.id.replace(':', '-')}`,
+            copyClassName: `node-frame-${copyNode.id.replace(':', '-')}`,
+            headingClassName: `node-text-${headingNode.id.replace(':', '-')}`,
+            bodyClassName: `node-text-${bodyNode.id.replace(':', '-')}`
+          });
         }
       }
+    }
 
-      if (Array.isArray(node.children)) {
-        node.children.forEach(processNode);
-      }
-    } catch (error) {
-      console.error('Error processing styles for node:', error);
+    // Process children recursively
+    if (Array.isArray(node.children)) {
+      node.children.forEach(processNode);
     }
   };
 
   processNode(node);
-  const finalStyles = styles.join('\n\n');
-  console.log('Final CSS generated:', finalStyles);
-  return finalStyles;
-};
-
-const findTestFrame = (document) => {
-  if (!document) return null;
-  
-  let testFrame = null;
-  
-  const findNode = (node) => {
-    if (!node) return;
-    
-    if (node.name === 'Test' && node.type === 'FRAME') {
-      testFrame = node;
-      return;
-    }
-    if (node.children && Array.isArray(node.children)) {
-      node.children.forEach(findNode);
-    }
-  };
-
-  findNode(document);
-  return testFrame;
+  return cards;
 };
 
 const generateReactComponent = (figmaJson, componentName) => {
@@ -505,18 +496,44 @@ const generateReactComponent = (figmaJson, componentName) => {
       return generateDefaultComponent(componentName);
     }
 
+    // Extract card data
+    const cards = extractCardData(testFrame);
+    console.log('Extracted card data:', cards);
+
+    if (!cards || cards.length === 0) {
+      return generateDefaultComponent(componentName);
+    }
+
+    // Generate the component with dynamic data
     return `
 import React from 'react';
 import './${componentName}.css';
 
 const ${componentName} = () => {
+  const cards = ${JSON.stringify(cards, null, 2)};
+
   return (
-${generateNodeComponent(testFrame, 2)}
+    <div className="cards-container">
+      {cards.map((card) => (
+        <div key={card.id} className="card">
+          <img 
+            src={\`/images/Image_\${card.imageRef}.png\`}
+            alt="Card Image"
+            className={card.imageClassName}
+          />
+          <div className={card.copyClassName}>
+            <p className={card.headingClassName}>{card.heading}</p>
+            <p className={card.bodyClassName}>{card.body}</p>
+          </div>
+        </div>
+      ))}
+    </div>
   );
 };
 
 export default ${componentName};
 `.trim();
+
   } catch (error) {
     console.error('Error in generateReactComponent:', error);
     return generateDefaultComponent(componentName);
@@ -587,4 +604,80 @@ const generatePackageJson = () => {
       "build": "react-scripts build"
     }
   }, null, 2);
+};
+
+const findTestFrame = (document) => {
+  if (!document) return null;
+  
+  let testFrame = null;
+  
+  const findNode = (node) => {
+    if (!node) return;
+    
+    if (node.name === 'Test' && node.type === 'FRAME') {
+      testFrame = node;
+      return;
+    }
+    if (node.children && Array.isArray(node.children)) {
+      node.children.forEach(findNode);
+    }
+  };
+
+  findNode(document);
+  return testFrame;
+};
+
+const generateStyles = (node) => {
+  if (!node || typeof node !== 'object') return '';
+
+  let styles = [];
+  console.log('Starting style generation for node:', node.name || 'unnamed node');
+  
+  // Add container styles
+  styles.push(`.cards-container {
+  display: flex;
+  flex-direction: row;
+  gap: 32px;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}`);
+
+  styles.push(`.card {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  width: 393px;
+}`);
+
+  const processNode = (node) => {
+    if (!node || typeof node !== 'object') return;
+
+    try {
+      const nodeType = (node.type && typeof node.type === 'string') ? node.type.toLowerCase() : 'div';
+      const nodeId = (node.id && typeof node.id === 'string') ? node.id.replace(':', '-') : Date.now().toString();
+      const className = `node-${nodeType}-${nodeId}`;
+      const nodeStyles = generateNodeStyles(node);
+      
+      if (Object.keys(nodeStyles).length > 0) {
+        const styleString = generateStylesString(nodeStyles);
+        if (styleString.trim()) {
+          styles.push(`.${className} {
+  ${styleString}
+}`);
+        }
+      }
+
+      if (Array.isArray(node.children)) {
+        node.children.forEach(processNode);
+      }
+    } catch (error) {
+      console.error('Error processing styles for node:', error);
+    }
+  };
+
+  processNode(node);
+  const finalStyles = styles.join('\n\n');
+  console.log('Final CSS generated:', finalStyles);
+  return finalStyles;
 }; 
