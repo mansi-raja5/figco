@@ -18,7 +18,26 @@ const metricsInfo = {
 const CodeQualityPopup = ({ isOpen, onClose, fileContent, fileName }) => {
   if (!isOpen || !fileContent) return null;
 
+  console.log('Analyzing file:', fileName);
   const analysis = analyzeCode(fileContent, fileName);
+  console.log('Analysis results:', analysis);
+
+  // Only include these specific metrics
+  const validMetrics = ['complexity', 'maintainability', 'reliability', 'duplication'];
+  
+  // Log raw metrics for debugging
+  console.error('Raw metrics:', analysis.metrics);
+  
+  // Filter and transform metrics
+  const filteredMetrics = Object.entries(analysis.metrics)
+    .filter(([key]) => validMetrics.includes(key))
+    .map(([key, value]) => {
+      // Ensure value has % symbol
+      const normalizedValue = value.toString().endsWith('%') ? value : `${value}%`;
+      return [key, normalizedValue];
+    });
+
+  console.error('Filtered metrics:', filteredMetrics);
 
   return (
     <div className="popup-overlay">
@@ -28,7 +47,7 @@ const CodeQualityPopup = ({ isOpen, onClose, fileContent, fileName }) => {
           <button className="close-button" onClick={onClose}>×</button>
         </div>
         <div className="quality-metrics">
-          {Object.entries(analysis.metrics).map(([key, value]) => (
+          {filteredMetrics.map(([key, value]) => (
             <div key={key} className="metric-item">
               <div className="metric-label-group">
                 <div className="metric-label">
