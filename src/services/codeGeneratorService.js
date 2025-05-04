@@ -20,7 +20,7 @@ export const generateReactCode = async (figmaJson, componentName = 'FigmaCompone
     }
 
     console.log('Sending request to generate code...');
-    const response = await fetch('http://localhost:3002/api/generate', {
+    const response = await fetch('/api/generate', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -70,7 +70,7 @@ export const generateReactCode = async (figmaJson, componentName = 'FigmaCompone
 
 export const runReactApp = async () => {
   try {
-    const response = await fetch('http://localhost:3002/api/run-app', {
+    const response = await fetch('/api/run-app', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

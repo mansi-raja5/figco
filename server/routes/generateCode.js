@@ -75,6 +75,7 @@ router.post('/generate', async (req, res) => {
 router.post('/run-app', async (req, res) => {
   try {
     const appPath = path.join(__dirname, '../../generated_code/reactapp');
+    const PORT = 3001; // Define port as a constant
     
     // Check if directory exists
     try {
@@ -97,9 +98,30 @@ router.post('/run-app', async (req, res) => {
 
       console.log('npm install output:', stdout);
       
-      // Start the React app
-      exec('cd ' + appPath + ' && npm start', (error, stdout, stderr) => {
+      // Start the React app with environment variables using npx
+      const env = { 
+        ...process.env,
+        PORT: PORT.toString(),
+        BROWSER: 'none',
+        CI: 'true' // This will auto-accept the port change prompt
+      };
+
+      exec('cd ' + appPath + ' && npx react-scripts start', { env }, (error, stdout, stderr) => {
         if (error) {
+          // Check if the error is just the port in use message
+          if (stderr.includes('Something is already running on port')) {
+            // Extract the actual port that was chosen
+            const portMatch = stderr.match(/port (\d+)/);
+            const actualPort = portMatch ? portMatch[1] : PORT;
+            
+            console.log('App started on alternate port:', actualPort);
+            return res.json({
+              success: true,
+              message: 'React app started successfully on alternate port',
+              url: `http://localhost:${actualPort}`
+            });
+          }
+
           console.error('Error starting React app:', error);
           return res.status(500).json({
             success: false,
@@ -113,7 +135,7 @@ router.post('/run-app', async (req, res) => {
         res.json({
           success: true,
           message: 'React app started successfully',
-          url: 'http://localhost:3000'
+          url: `http://localhost:${PORT}`
         });
       });
     });

@@ -77,6 +77,18 @@ const findImageNodes = (node, logger = console) => {
   return images;
 };
 
+const generateEslintConfig = () => {
+  return `module.exports = {
+  root: true,
+  extends: ['react-app'],
+  settings: {
+    react: {
+      version: 'detect'
+    }
+  }
+};`;
+};
+
 const generateReactCode = async (figmaJson, componentName = 'FigmaComponent', logger = console) => {
   try {
     logger.log('Starting code generation for component:', componentName);
@@ -151,6 +163,10 @@ const generateReactCode = async (figmaJson, componentName = 'FigmaComponent', lo
       {
         content: generatePackageJson(),
         path: path.join(baseDir, 'package.json')
+      },
+      {
+        content: generateEslintConfig(),
+        path: path.join(baseDir, '.eslintrc.js')
       }
     ];
 
@@ -599,9 +615,13 @@ const generatePackageJson = () => {
       "react-scripts": "5.0.1",
       "styled-components": "^5.3.10"
     },
+    devDependencies: {
+      "eslint": "^8.56.0",
+      "eslint-config-react-app": "^7.0.1"
+    },
     scripts: {
-      "start": "react-scripts start",
-      "build": "react-scripts build"
+      "start": "npx react-scripts start",
+      "build": "npx react-scripts build"
     }
   }, null, 2);
 };
