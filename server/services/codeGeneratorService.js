@@ -91,8 +91,19 @@ const generateEslintConfig = () => {
 
 const generateReactCode = async (figmaJson, componentName = 'FigmaComponent', logger = console) => {
   try {
+    if (!figmaJson || !figmaJson.document) {
+      throw new Error('Invalid Figma JSON');
+    }
+
     logger.log('Starting code generation for component:', componentName);
     
+    // Find the main frame that contains our design
+    const mainFrame = findMainFrame(figmaJson.document);
+    if (!mainFrame) {
+      throw new Error('No suitable frame found in Figma document');
+    }
+
+    // Set up directory structure
     const baseDir = path.resolve(__dirname, '../../generated_code/reactapp');
     logger.log('Base directory:', baseDir);
 
@@ -117,7 +128,7 @@ const generateReactCode = async (figmaJson, componentName = 'FigmaComponent', lo
       }
     }
 
-    // Find image nodes and handle images
+    // Handle images
     logger.log('Finding image nodes in Figma JSON...');
     const imageNodes = findImageNodes(figmaJson.document, logger);
     const imageRefs = imageNodes.map(node => {
@@ -131,25 +142,28 @@ const generateReactCode = async (figmaJson, componentName = 'FigmaComponent', lo
       await copyImagesToPublic(imageRefs, baseDir, logger);
     }
 
-    // Find the Test frame
-    const testFrame = findTestFrame(figmaJson.document);
-    if (!testFrame) {
-      throw new Error('Test frame not found in Figma document');
-    }
+    // Generate component code and styles
+    const componentCode = `import React from 'react';
+import './FigmaComponent.css';
 
-    // Generate the CSS first
-    logger.log('Generating CSS...');
-    const cssContent = generateStyles(testFrame);
-    logger.log('CSS content generated:', cssContent);
+const FigmaComponent = () => {
+  return (
+${generateNodeComponent(mainFrame, 2)}
+  );
+};
+
+export default FigmaComponent;`;
+
+    const styles = generateStyles(mainFrame);
 
     // Define files to create
     const files = [
       {
-        content: generateReactComponent(figmaJson, componentName),
+        content: componentCode,
         path: path.join(baseDir, 'src/components', `${componentName}.js`)
       },
       {
-        content: cssContent,
+        content: styles,
         path: path.join(baseDir, 'src/components', `${componentName}.css`)
       },
       {
@@ -175,7 +189,6 @@ const generateReactCode = async (figmaJson, componentName = 'FigmaComponent', lo
     for (const file of files) {
       try {
         logger.log('Writing file:', file.path);
-        logger.log('File content:', file.content);
         await fs.promises.writeFile(file.path, file.content, 'utf8');
         logger.log('File written successfully:', file.path);
         savedFiles[path.basename(file.path)] = file.path;
@@ -189,12 +202,42 @@ const generateReactCode = async (figmaJson, componentName = 'FigmaComponent', lo
       success: true,
       message: 'React application generated successfully',
       path: baseDir,
-      files: savedFiles
+      files: savedFiles,
+      componentCode,
+      styles
     };
   } catch (error) {
     logger.error('Error in generateReactCode:', error);
     throw error;
   }
+};
+
+// Helper function to find the main frame
+const findMainFrame = (document) => {
+  if (!document) return null;
+  
+  let mainFrame = null;
+  
+  const findNode = (node) => {
+    if (!node) return;
+    
+    // Look for a FRAME or COMPONENT_SET that has children
+    if ((node.type === 'FRAME' || node.type === 'COMPONENT_SET') && 
+        node.children && node.children.length > 0) {
+      // If we haven't found a frame yet, or if this frame has more children
+      if (!mainFrame || (node.children.length > mainFrame.children.length)) {
+        mainFrame = node;
+      }
+    }
+    
+    // Continue searching in children
+    if (node.children && Array.isArray(node.children)) {
+      node.children.forEach(findNode);
+    }
+  };
+
+  findNode(document);
+  return mainFrame;
 };
 
 module.exports = {
@@ -344,6 +387,15 @@ const generateNodeStyles = (node) => {
   let styles = {};
 
   try {
+    // Clean up node ID to create valid CSS class name
+    const cleanNodeId = (id) => {
+      if (!id) return Date.now().toString();
+      // Remove instance path separators and clean up the ID
+      return id.split(';')[0]  // Take only the first part of instance ID
+        .replace(':', '-')     // Replace colons with hyphens
+        .replace(/[^a-zA-Z0-9-]/g, ''); // Remove any other invalid characters
+    };
+
     if (node.type === 'FRAME') {
       const layout = transformLayoutProps(node);
       styles = {
@@ -367,6 +419,12 @@ const generateNodeStyles = (node) => {
     } else if (node.type === 'TEXT') {
       styles = transformTextStyles(node);
     }
+
+    // Add the cleanNodeId function to the module exports
+    if (typeof module !== 'undefined' && module.exports) {
+      module.exports.cleanNodeId = cleanNodeId;
+    }
+
   } catch (error) {
     console.error('Error generating styles for node:', error);
   }
@@ -391,105 +449,131 @@ const generateNodeComponent = (node, depth = 0) => {
   if (!node || typeof node !== 'object') return '';
   
   const indent = '  '.repeat(depth);
-  const styles = generateNodeStyles(node);
-  const nodeType = (node.type && typeof node.type === 'string') ? node.type.toLowerCase() : 'div';
-  const nodeId = (node.id && typeof node.id === 'string') ? node.id.replace(':', '-') : Date.now().toString();
-  const className = `node-${nodeType}-${nodeId}`;
+  const nodeId = cleanNodeId(node.id);
+  const className = `node-${node.type.toLowerCase()}-${nodeId}`;
 
-  let component = '';
-
-  try {
-    // Check if this is a frame that contains an image
-    const hasImageFill = node.fills?.[0]?.type === 'IMAGE' || node.background?.[0]?.type === 'IMAGE';
-    const imageRef = node.fills?.[0]?.imageRef || node.background?.[0]?.imageRef;
-
-    switch (node.type) {
-      case 'FRAME':
-        if (hasImageFill && imageRef && typeof imageRef === 'string') {
-          // This is a frame with an image fill, render as img
-          component = `${indent}<img 
-${indent}  src={'/images/Image_${imageRef}.png'}
-${indent}  alt="${(node.name && typeof node.name === 'string') ? node.name : 'Image'}"
-${indent}  className="${className}"
-${indent}/>`;
-        } else {
-          // Regular frame, render as div with children
-          const childrenContent = Array.isArray(node.children) 
-            ? node.children.map(child => generateNodeComponent(child, depth + 1)).join('\n') 
-            : '';
-          component = `${indent}<div className="${className}">
-${childrenContent}
+  // Handle different node types
+  switch (node.type) {
+    case 'TEXT':
+      return `${indent}<div className="${className}">
+${indent}  {${JSON.stringify(node.characters)}}
 ${indent}</div>`;
+
+    case 'FRAME':
+      // Special handling for the root frame (Test frame)
+      if (node.name === 'Test') {
+        // Find the section heading and card container nodes
+        const headingNode = node.children.find(child => child.type === 'TEXT');
+        const cardNodes = node.children.filter(child => 
+          child.type === 'FRAME' && child.children && child.children.length > 0 && child.name !== 'Section heading'
+        );
+
+        // Generate the heading component
+        const headingComponent = headingNode ? generateNodeComponent(headingNode, depth + 1) : '';
+
+        // Generate the cards container with grid layout
+        const cardsComponent = cardNodes.length > 0 ? 
+          `${indent}<div className="cards-grid">
+${cardNodes.map(card => `${indent}  <div className="card-wrapper">
+${generateNodeComponent(card, depth + 2)}
+${indent}  </div>`).join('\n')}
+${indent}</div>` : '';
+
+        // Return the complete structure
+        return `${indent}<div className="${className}">
+${headingComponent}
+${cardsComponent}
+${indent}</div>`;
+      }
+
+      // Special handling for Image frames
+      if (node.name === 'Image' && node.fills && node.fills[0] && node.fills[0].type === 'IMAGE') {
+        return `${indent}<div className="${className}">
+${indent}  <img 
+${indent}    src={'/images/Image_${node.fills[0].imageRef}.png'}
+${indent}    alt="Frame Image"
+${indent}    className="card-image"
+${indent}  />
+${indent}</div>`;
+      }
+
+      // Handle card frames
+      if (node.children) {
+        const children = node.children
+          .map(child => generateNodeComponent(child, depth + 1))
+          .filter(Boolean)
+          .join('\n');
+
+        // Add layout properties based on node's layout settings
+        const layoutStyle = {};
+        
+        if (node.layoutMode === 'HORIZONTAL') {
+          layoutStyle.display = 'flex';
+          layoutStyle.flexDirection = 'row';
+          layoutStyle.alignItems = 'center';
+        } else if (node.layoutMode === 'VERTICAL') {
+          layoutStyle.display = 'flex';
+          layoutStyle.flexDirection = 'column';
         }
-        break;
 
-      case 'TEXT':
-        const text = node.characters && typeof node.characters === 'string' ? node.characters : '';
-        component = `${indent}<p className="${className}">${text}</p>`;
-        break;
+        if (typeof node.itemSpacing === 'number') {
+          layoutStyle.gap = `${node.itemSpacing}px`;
+        }
 
-      default:
-        const defaultChildrenContent = Array.isArray(node.children)
-          ? node.children.map(child => generateNodeComponent(child, depth + 1)).join('\n')
+        const styleString = Object.keys(layoutStyle).length > 0 
+          ? ` style={${JSON.stringify(layoutStyle)}}`
           : '';
-        component = `${indent}<div className="${className}">
-${defaultChildrenContent}
-${indent}</div>`;
-    }
-  } catch (error) {
-    console.error('Error generating component for node:', error);
-    component = `${indent}<div className="${className}"></div>`;
-  }
 
-  return component;
+        return `${indent}<div className="${className}"${styleString}>
+${children}
+${indent}</div>`;
+      }
+
+      return '';
+
+    default:
+      if (Array.isArray(node.children) && node.children.length > 0) {
+        const children = node.children
+          .map(child => generateNodeComponent(child, depth + 1))
+          .filter(Boolean)
+          .join('\n');
+
+        return `${indent}<div className="${className}">
+${children}
+${indent}</div>`;
+      }
+      return '';
+  }
 };
 
-// Add function to extract card data
+// Add function to extract month data
 const extractCardData = (node) => {
   if (!node || !node.children) return null;
 
-  // Find card components (they follow the pattern of image + copy with text)
-  const cards = [];
+  const months = [];
   
   const processNode = (node) => {
     if (!node || !node.children) return;
     
-    // Check if this is a card structure
+    // Check if this is a month frame structure (has a rectangle and text)
     if (node.type === 'FRAME' && node.children.length > 0) {
-      const imageNode = node.children.find(child => 
-        child.type === 'FRAME' && 
-        child.name === 'Image' && 
-        (child.fills?.[0]?.type === 'IMAGE' || child.background?.[0]?.type === 'IMAGE')
+      const rectangleNode = node.children.find(child => 
+        child.type === 'RECTANGLE'
       );
       
-      const copyNode = node.children.find(child => 
-        child.type === 'FRAME' && 
-        child.name === 'Copy'
+      const textNode = node.children.find(child => 
+        child.type === 'TEXT'
       );
 
-      if (imageNode && copyNode) {
-        const headingNode = copyNode.children?.find(child => 
-          child.type === 'TEXT' && 
-          child.name === 'Subheading'
-        );
-        
-        const bodyNode = copyNode.children?.find(child => 
-          child.type === 'TEXT' && 
-          child.name.includes('Body text')
-        );
-
-        if (headingNode && bodyNode) {
-          cards.push({
-            id: node.id,
-            imageRef: imageNode.fills?.[0]?.imageRef || imageNode.background?.[0]?.imageRef,
-            heading: headingNode.characters,
-            body: bodyNode.characters,
-            imageClassName: `node-frame-${imageNode.id.replace(':', '-')}`,
-            copyClassName: `node-frame-${copyNode.id.replace(':', '-')}`,
-            headingClassName: `node-text-${headingNode.id.replace(':', '-')}`,
-            bodyClassName: `node-text-${bodyNode.id.replace(':', '-')}`
-          });
-        }
+      if (rectangleNode && textNode) {
+        months.push({
+          id: node.id,
+          name: textNode.characters,
+          color: rectangleNode.fills?.[0]?.color || { r: 1, g: 1, b: 1, a: 1 },
+          frameClassName: `node-frame-${cleanNodeId(node.id)}`,
+          rectangleClassName: `node-rectangle-${cleanNodeId(rectangleNode.id)}`,
+          textClassName: `node-text-${cleanNodeId(textNode.id)}`
+        });
       }
     }
 
@@ -500,7 +584,8 @@ const extractCardData = (node) => {
   };
 
   processNode(node);
-  return cards;
+  console.log('Extracted months data:', months);
+  return months;
 };
 
 const generateReactComponent = (figmaJson, componentName) => {
@@ -508,42 +593,24 @@ const generateReactComponent = (figmaJson, componentName) => {
     const testFrame = findTestFrame(figmaJson.document);
     
     if (!testFrame) {
-      console.error('Test frame not found in Figma document');
+      console.error('No suitable frame found in Figma document');
       return generateDefaultComponent(componentName);
     }
 
-    // Extract card data
-    const cards = extractCardData(testFrame);
-    console.log('Extracted card data:', cards);
-
-    if (!cards || cards.length === 0) {
+    // Generate the component
+    const componentContent = generateNodeComponent(testFrame, 2);
+    
+    if (!componentContent) {
       return generateDefaultComponent(componentName);
     }
 
-    // Generate the component with dynamic data
     return `
 import React from 'react';
 import './${componentName}.css';
 
 const ${componentName} = () => {
-  const cards = ${JSON.stringify(cards, null, 2)};
-
   return (
-    <div className="cards-container">
-      {cards.map((card) => (
-        <div key={card.id} className="card">
-          <img 
-            src={\`/images/Image_\${card.imageRef}.png\`}
-            alt="Card Image"
-            className={card.imageClassName}
-          />
-          <div className={card.copyClassName}>
-            <p className={card.headingClassName}>{card.heading}</p>
-            <p className={card.bodyClassName}>{card.body}</p>
-          </div>
-        </div>
-      ))}
-    </div>
+${componentContent}
   );
 };
 
@@ -627,77 +694,195 @@ const generatePackageJson = () => {
 };
 
 const findTestFrame = (document) => {
-  if (!document) return null;
+  if (!document) {
+    console.log('Document is null or undefined');
+    return null;
+  }
   
   let testFrame = null;
+  let frameCount = 0;
   
   const findNode = (node) => {
     if (!node) return;
     
-    if (node.name === 'Test' && node.type === 'FRAME') {
-      testFrame = node;
-      return;
+    // Log the node we're currently examining
+    console.log(`Examining node: ${node.name} (type: ${node.type})`);
+    
+    if ((node.type === 'FRAME' || node.type === 'COMPONENT_SET' || node.type === 'COMPONENT') && 
+        node.children && node.children.length > 0) {
+      frameCount++;
+      console.log(`Found potential frame/component: ${node.name} (type: ${node.type}, children: ${node.children.length})`);
+      
+      // If we haven't found a frame yet, or if this is a COMPONENT_SET (prefer COMPONENT_SET)
+      if (!testFrame || 
+          (node.type === 'COMPONENT_SET') || 
+          (node.type === 'COMPONENT' && testFrame.type === 'FRAME')) {
+        testFrame = node;
+        console.log(`Selected as current best frame: ${node.name} (type: ${node.type})`);
+      }
     }
+    
+    // Continue searching in children
     if (node.children && Array.isArray(node.children)) {
       node.children.forEach(findNode);
     }
   };
 
+  // Start searching from the document
+  console.log('Starting frame search in document...');
   findNode(document);
+  
+  console.log(`Frame search complete. Found ${frameCount} potential frames/components`);
+  if (testFrame) {
+    console.log(`Selected frame: ${testFrame.name} (type: ${testFrame.type})`);
+  } else {
+    console.log('No suitable frame found');
+  }
+
   return testFrame;
+};
+
+// Helper function to clean node IDs for CSS class names
+const cleanNodeId = (id) => {
+  if (!id) return Date.now().toString();
+  // Remove instance path separators and clean up the ID
+  return id.split(';')[0]  // Take only the first part of instance ID
+    .replace(':', '-')     // Replace colons with hyphens
+    .replace(/[^a-zA-Z0-9-]/g, ''); // Remove any other invalid characters
 };
 
 const generateStyles = (node) => {
   if (!node || typeof node !== 'object') return '';
 
   let styles = [];
-  console.log('Starting style generation for node:', node.name || 'unnamed node');
   
-  // Add container styles
-  styles.push(`.cards-container {
-  display: flex;
-  flex-direction: row;
-  gap: 32px;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-}`);
-
-  styles.push(`.card {
+  // Add base styles
+  styles.push(`
+/* Base styles */
+.node-frame-64-2 {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 40px 20px;
   display: flex;
   flex-direction: column;
-  gap: 24px;
-  width: 393px;
-}`);
+  align-items: center;
+}
 
+/* Grid layout */
+.cards-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 32px;
+  width: 100%;
+  margin-top: 40px;
+}
+
+/* Card wrapper */
+.card-wrapper {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Card image */
+.card-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 8px;
+}
+
+/* Section heading */
+.node-text-64-85 {
+  font-family: Inter;
+  font-size: 48px;
+  font-weight: 600;
+  line-height: 58px;
+  letter-spacing: -0.96px;
+  text-align: center;
+  color: rgba(0, 0, 0, 1);
+  margin-bottom: 32px;
+  width: 100%;
+}
+
+/* Responsive grid */
+@media (max-width: 1024px) {
+  .cards-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .cards-grid {
+    grid-template-columns: 1fr;
+  }
+}`);
+  
   const processNode = (node) => {
     if (!node || typeof node !== 'object') return;
 
     try {
       const nodeType = (node.type && typeof node.type === 'string') ? node.type.toLowerCase() : 'div';
-      const nodeId = (node.id && typeof node.id === 'string') ? node.id.replace(':', '-') : Date.now().toString();
+      const nodeId = cleanNodeId(node.id);
       const className = `node-${nodeType}-${nodeId}`;
-      const nodeStyles = generateNodeStyles(node);
-      
-      if (Object.keys(nodeStyles).length > 0) {
-        const styleString = generateStylesString(nodeStyles);
-        if (styleString.trim()) {
+
+      // Generate styles based on node type
+      switch (node.type) {
+        case 'TEXT': {
+          // Skip the section heading as it's handled in base styles
+          if (node.style && node.style.fontSize >= 48) break;
+
+          const textStyle = {};
+          if (node.style) {
+            if (node.style.fontFamily) textStyle['font-family'] = node.style.fontFamily;
+            if (node.style.fontSize) textStyle['font-size'] = `${node.style.fontSize}px`;
+            if (node.style.fontWeight) textStyle['font-weight'] = node.style.fontWeight;
+            if (node.style.lineHeightPx) textStyle['line-height'] = `${node.style.lineHeightPx}px`;
+            if (node.style.letterSpacing) textStyle['letter-spacing'] = `${node.style.letterSpacing}px`;
+            if (node.style.textAlignHorizontal) textStyle['text-align'] = node.style.textAlignHorizontal.toLowerCase();
+          }
+
+          if (node.fills && node.fills[0] && node.fills[0].type === 'SOLID') {
+            const color = node.fills[0].color;
+            textStyle.color = `rgba(${Math.round(color.r * 255)}, ${Math.round(color.g * 255)}, ${Math.round(color.b * 255)}, ${color.a})`;
+          }
+
           styles.push(`.${className} {
-  ${styleString}
+  ${Object.entries(textStyle).map(([key, value]) => `${key}: ${value};`).join('\n  ')}
 }`);
+          break;
+        }
+
+        case 'FRAME': {
+          const frameStyle = {};
+          
+          // Handle layout properties
+          if (node.layoutMode === 'HORIZONTAL' || node.layoutMode === 'VERTICAL') {
+            frameStyle.display = 'flex';
+            frameStyle['flex-direction'] = node.layoutMode === 'HORIZONTAL' ? 'row' : 'column';
+            
+            if (typeof node.itemSpacing === 'number') {
+              frameStyle.gap = `${node.itemSpacing}px`;
+            }
+          }
+
+          if (Object.keys(frameStyle).length > 0) {
+            styles.push(`.${className} {
+  ${Object.entries(frameStyle).map(([key, value]) => `${key}: ${value};`).join('\n  ')}
+}`);
+          }
+          break;
         }
       }
 
+      // Process children recursively
       if (Array.isArray(node.children)) {
         node.children.forEach(processNode);
       }
     } catch (error) {
-      console.error('Error processing styles for node:', error);
+      console.error('Error processing node styles:', error);
     }
   };
 
   processNode(node);
-  const finalStyles = styles.join('\n\n');
-  console.log('Final CSS generated:', finalStyles);
-  return finalStyles;
+  return styles.join('\n\n');
 }; 
