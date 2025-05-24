@@ -27,6 +27,7 @@ function App() {
         onJsonLoad={setJsonData}
         onCodeGenerate={handleCodeGenerate}
         onFolderUpload={setFolderStructure}
+        jsonData={jsonData}
       />
       <MainContent 
         imageUrl={imageUrl}

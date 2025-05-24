@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { exportFigmaImage, fetchFigmaFile } from '../services/figmaService';
 import { generateReactCode, runReactApp } from '../services/codeGeneratorService';
 import FileTree from './FileTree';
 import '../styles/InputRow.css';
 
-const InputRow = ({ onImageLoad, onJsonLoad, onCodeGenerate, onFolderUpload }) => {
+const InputRow = ({ onImageLoad, onJsonLoad, onCodeGenerate, onFolderUpload, jsonData }) => {
   console.log('All env vars:', process.env);
   console.log('Environment token:', process.env.REACT_APP_FIGMA_DEFAULT_TOKEN); // Debug log
 
@@ -21,9 +21,18 @@ const InputRow = ({ onImageLoad, onJsonLoad, onCodeGenerate, onFolderUpload }) =
   const [loadingImages, setLoadingImages] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [generatingCode, setGeneratingCode] = useState(false);
-  const [jsonData, setJsonData] = useState(null);
+  const [hasGeneratedCode, setHasGeneratedCode] = useState(false);
   const [showUpload, setShowUpload] = useState(false);
   const [runningApp, setRunningApp] = useState(false);
+
+  useEffect(() => {
+    console.log('State changed:', {
+      generatingCode,
+      hasGeneratedCode,
+      runningApp,
+      hasJsonData: !!jsonData
+    });
+  }, [generatingCode, hasGeneratedCode, runningApp, jsonData]);
 
   const frameworks = [
     { value: 'react', label: 'React JS' },
@@ -62,7 +71,6 @@ const InputRow = ({ onImageLoad, onJsonLoad, onCodeGenerate, onFolderUpload }) =
     setLoadingJson(true);
     try {
       const data = await fetchFigmaFile(fileKey, accessToken);
-      setJsonData(data);
       onJsonLoad(data);
     } catch (error) {
       console.error('Error loading Figma JSON:', error);
@@ -166,9 +174,12 @@ const InputRow = ({ onImageLoad, onJsonLoad, onCodeGenerate, onFolderUpload }) =
       return;
     }
 
+    console.log('Starting code generation...');
     setGeneratingCode(true);
+    setHasGeneratedCode(false);
     try {
       const result = await generateReactCode(jsonData, 'FigmaComponent');
+      console.log('Code generation result:', result);
       if (result.success) {
         console.log('Code generated successfully at:', result.path);
         
@@ -181,6 +192,7 @@ const InputRow = ({ onImageLoad, onJsonLoad, onCodeGenerate, onFolderUpload }) =
           // Pass the actual directory structure to parent component
           onFolderUpload([structure]); // Wrap in array to match UI import format
           onCodeGenerate(result);
+          setHasGeneratedCode(true);
         } catch (error) {
           console.error('Error reading directory structure:', error);
         }
@@ -195,9 +207,24 @@ const InputRow = ({ onImageLoad, onJsonLoad, onCodeGenerate, onFolderUpload }) =
   };
 
   const handleRunApp = async () => {
+    console.log('Run app clicked, current states:', {
+      runningApp,
+      hasGeneratedCode,
+      generatingCode,
+      isDisabled: runningApp || !hasGeneratedCode
+    });
+
+    if (runningApp || !hasGeneratedCode) {
+      console.log('Button should be disabled, not proceeding');
+      return;
+    }
+
     setRunningApp(true);
     try {
+      console.log('Starting to run React app...');
       const result = await runReactApp();
+      console.log('Run app result:', result);
+      
       if (result.success) {
         console.log('React app started at:', result.url);
         window.open(result.url, '_blank');
@@ -433,10 +460,11 @@ const InputRow = ({ onImageLoad, onJsonLoad, onCodeGenerate, onFolderUpload }) =
             >
               {generatingCode ? 'Generating...' : 'Generate Code'}
             </button>
+            {console.log('Run Application button state:', { runningApp, hasGeneratedCode, isDisabled: runningApp || !hasGeneratedCode })}
             <button
-              className="run-button"
+              className={`run-button ${hasGeneratedCode && !runningApp ? 'enabled' : 'disabled'}`}
               onClick={handleRunApp}
-              disabled={runningApp || !jsonData}
+              disabled={runningApp || !hasGeneratedCode}
               data-loading={runningApp}
             >
               {runningApp ? 'Starting App...' : 'Run Application'}
