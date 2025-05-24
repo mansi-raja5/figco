@@ -1,7 +1,7 @@
 export const analyzeCode = (fileContent, fileName) => {
   // Basic metrics calculation
   const metrics = {
-    complexity: calculateComplexity(fileContent),
+    simplicity: calculateSimplicity(fileContent),
     maintainability: calculateMaintainability(fileContent),
     reliability: calculateReliability(fileContent),
     duplication: calculateDuplication(fileContent),
@@ -22,10 +22,10 @@ export const analyzeCode = (fileContent, fileName) => {
   };
 };
 
-const calculateComplexity = (code) => {
+const calculateSimplicity = (code) => {
   let score = 100;
   
-  // Cyclomatic complexity estimation
+  // Simplicity calculation (inverse of complexity)
   const conditionals = (code.match(/(if|else|for|while|switch|case|catch)/g) || []).length;
   const functions = (code.match(/(function|=>)/g) || []).length;
   
@@ -153,8 +153,15 @@ const estimateTestability = (code) => {
 };
 
 const calculateOverallScore = (metrics) => {
-  const scores = Object.values(metrics).map(value => parseInt(value));
-  const average = scores.reduce((a, b) => a + b, 0) / scores.length;
+  // Convert all metrics to numbers where higher is better
+  const adjustedScores = Object.entries(metrics).map(([key, value]) => {
+    const numericValue = parseInt(value);
+    // For duplication, invert the score since lower is better
+    return key === 'duplication' ? 100 - numericValue : numericValue;
+  });
+  
+  // Calculate average
+  const average = adjustedScores.reduce((a, b) => a + b, 0) / adjustedScores.length;
   return Math.round(average);
 };
 

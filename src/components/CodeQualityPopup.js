@@ -2,7 +2,7 @@ import React from 'react';
 import { analyzeCode } from '../services/codeAnalysisService';
 
 const metricsInfo = {
-  complexity: "Calculated based on:\n• Number of conditional statements (if/else/switch)\n• Number of loops (for/while)\n• Number of functions\nLower score indicates higher complexity.",
+  simplicity: "Calculated based on:\n• Number of conditional statements (if/else/switch)\n• Number of loops (for/while)\n• Number of functions\nHigher score indicates simpler, cleaner code.",
   
   maintainability: "Calculated based on:\n• Number of lines longer than 80 characters\n• Number of functions longer than 20 lines\nHigher score indicates better maintainability.",
   
@@ -12,32 +12,38 @@ const metricsInfo = {
   
   coverage: "Estimated based on:\n• Presence of exports\n• Pure function patterns\n• State management practices\nHigher score suggests better testability.",
   
-  codeSmells: "Detected issues that might indicate deeper problems:\n• Long Functions (>20 lines)\n• Magic Numbers\n• Long Parameter Lists\n• Nested Callbacks\n• Debug Statements"
+  codeSmells: "Issues that might indicate problems:\n• Long Functions: Over 20 lines\n• Magic Numbers: Unnamed numeric constants\n• Long Parameter Lists: Over 3 parameters\n• Nested Callbacks: Multiple promise chains\n• Debug Statements: Console logs in production"
+};
+
+const getScoreColor = (score, isInverse = false) => {
+  const numScore = parseInt(score);
+  if (isInverse) {
+    if (numScore <= 20) return '#22c55e'; // green
+    if (numScore <= 40) return '#84cc16'; // light green
+    if (numScore <= 60) return '#eab308'; // yellow
+    return '#ef4444'; // red
+  } else {
+    if (numScore >= 80) return '#22c55e'; // green
+    if (numScore >= 60) return '#84cc16'; // light green
+    if (numScore >= 40) return '#eab308'; // yellow
+    return '#ef4444'; // red
+  }
 };
 
 const CodeQualityPopup = ({ isOpen, onClose, fileContent, fileName }) => {
   if (!isOpen || !fileContent) return null;
 
-  console.log('Analyzing file:', fileName);
   const analysis = analyzeCode(fileContent, fileName);
-  console.log('Analysis results:', analysis);
-
+  
   // Only include these specific metrics
-  const validMetrics = ['complexity', 'maintainability', 'reliability', 'duplication'];
+  const validMetrics = ['simplicity', 'maintainability', 'reliability', 'duplication'];
   
-  // Log raw metrics for debugging
-  console.error('Raw metrics:', analysis.metrics);
-  
-  // Filter and transform metrics
   const filteredMetrics = Object.entries(analysis.metrics)
     .filter(([key]) => validMetrics.includes(key))
     .map(([key, value]) => {
-      // Ensure value has % symbol
       const normalizedValue = value.toString().endsWith('%') ? value : `${value}%`;
       return [key, normalizedValue];
     });
-
-  console.error('Filtered metrics:', filteredMetrics);
 
   return (
     <div className="popup-overlay">
@@ -46,68 +52,112 @@ const CodeQualityPopup = ({ isOpen, onClose, fileContent, fileName }) => {
           <h3>Code Quality Analysis: {fileName}</h3>
           <button className="close-button" onClick={onClose}>×</button>
         </div>
+
+        {/* Overall Score Section */}
+        <div className="overall-score-section">
+          <h4>Overall Quality Score</h4>
+          <div className="score-circle" style={{ 
+            backgroundColor: getScoreColor(analysis.overallScore)
+          }}>
+            <span className="score-number">{analysis.overallScore}</span>
+            <span className="score-label">/100</span>
+          </div>
+        </div>
+
+        {/* Metrics Section */}
         <div className="quality-metrics">
+          <h4>Quality Metrics</h4>
           {filteredMetrics.map(([key, value]) => (
             <div key={key} className="metric-item">
               <div className="metric-label-group">
                 <div className="metric-label">
                   {key.charAt(0).toUpperCase() + key.slice(1)}
+                  <div 
+                    className="info-icon" 
+                    data-tooltip={metricsInfo[key]}
+                  >
+                    ⓘ
+                  </div>
                 </div>
-                <div 
-                  className="info-icon" 
-                  data-tooltip={metricsInfo[key]}
-                >
-                  ⓘ
-                </div>
+                <div className="metric-value">{value}</div>
               </div>
               <div className="metric-bar-container">
                 <div 
                   className="metric-bar" 
-                  style={{ width: value }}
-                  data-value={value}
+                  style={{ 
+                    width: value,
+                    backgroundColor: getScoreColor(value, key === 'duplication')
+                  }}
                 />
               </div>
             </div>
           ))}
         </div>
-        <div className="quality-summary">
-          <h4>Summary</h4>
-          <p>Overall code quality score: <strong>{analysis.overallScore}/100</strong></p>
-          <div className="code-smells-section">
-            <h5>
-              Code Smells Detected 
-              <span 
-                className="info-icon" 
-                data-tooltip={metricsInfo.codeSmells}
-              >
-                ⓘ
-              </span>
-              <span className="smell-count">({analysis.codeSmells.length})</span>
-            </h5>
-            {analysis.codeSmells.length > 0 ? (
-              <ul className="smell-list">
-                {analysis.codeSmells.map((smell, index) => (
-                  <li key={index} className="smell-item">
-                    <span className="smell-type">{smell.type}</span>
-                    <span className="smell-description">{smell.description}</span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="no-smells">No code smells detected! 🎉</p>
-            )}
-          </div>
-          <div className="practices-section">
-            <h5>Suggested Improvements:</h5>
-            <ul>
+
+        {/* Issues Section */}
+        <div className="issues-section">
+          <h4>Detected Issues</h4>
+          {analysis.codeSmells.length > 0 ? (
+            <div className="code-smells-list">
+              {analysis.codeSmells.map((smell, index) => (
+                <div key={index} className="issue-item">
+                  <div className="issue-header">
+                    <span className="issue-type">{smell.type}</span>
+                    <div 
+                      className="info-icon"
+                      data-tooltip={metricsInfo.codeSmells}
+                    >
+                      ⓘ
+                    </div>
+                  </div>
+                  <p className="issue-description">{smell.description}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="no-issues">
+              <span className="success-icon">✓</span>
+              <p>No code issues detected!</p>
+            </div>
+          )}
+        </div>
+
+        {/* Recommendations Section */}
+        <div className="recommendations-section">
+          <h4>Recommendations</h4>
+          {analysis.summary.practices.length > 0 ? (
+            <ul className="recommendations-list">
               {analysis.summary.practices.map((practice, index) => (
-                <li key={index}>{practice}</li>
+                <li key={index} className="recommendation-item">
+                  <span className="recommendation-icon">→</span>
+                  {practice}
+                </li>
               ))}
             </ul>
+          ) : (
+            <p className="no-recommendations">No specific recommendations at this time.</p>
+          )}
+        </div>
+
+        {/* Summary Section */}
+        <div className="summary-section">
+          <div className="summary-item">
+            <span className="summary-label">Code Organization</span>
+            <span 
+              className="summary-value"
+              data-status={analysis.summary.organization}
+            >
+              {analysis.summary.organization}
+            </span>
           </div>
-          <div className="metrics-summary">
-            <p>Code organization: <strong>{analysis.summary.organization}</strong></p>
-            <p>Performance optimization: <strong>{analysis.summary.performance}</strong></p>
+          <div className="summary-item">
+            <span className="summary-label">Performance</span>
+            <span 
+              className="summary-value"
+              data-status={analysis.summary.performance}
+            >
+              {analysis.summary.performance}
+            </span>
           </div>
         </div>
       </div>
