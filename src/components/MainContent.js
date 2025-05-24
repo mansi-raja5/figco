@@ -63,15 +63,14 @@ const MainContent = ({ imageUrl, jsonData, folderStructure, onCodeQuality }) => 
       <div className="main-content">
         <div className="section image-section">
           <div className="section-header">
-            {imageUrl && (
-              <button 
-                className="fullscreen-button"
-                onClick={() => handleFullscreen('image-section')}
-                title="Toggle fullscreen"
-              >
-                ⊕
-              </button>
-            )}
+            <h3 className="section-title">Figma Preview Section</h3>
+            <button 
+              className="fullscreen-button"
+              onClick={() => handleFullscreen('image-section')}
+              title="Toggle fullscreen"
+            >
+              ⊕
+            </button>
           </div>
           {imageUrl ? (
             <div className="image-container">
@@ -89,15 +88,14 @@ const MainContent = ({ imageUrl, jsonData, folderStructure, onCodeQuality }) => 
 
         <div className="section json-section">
           <div className="section-header">
-            {jsonData && (
-              <button 
-                className="fullscreen-button"
-                onClick={() => handleFullscreen('json-section')}
-                title="Toggle fullscreen"
-              >
-                ⊕
-              </button>
-            )}
+            <h3 className="section-title">Figma JSON Viewer</h3>
+            <button 
+              className="fullscreen-button"
+              onClick={() => handleFullscreen('json-section')}
+              title="Toggle fullscreen"
+            >
+              ⊕
+            </button>
           </div>
           {jsonData ? (
             <div className="json-viewer">
@@ -121,6 +119,7 @@ const MainContent = ({ imageUrl, jsonData, folderStructure, onCodeQuality }) => 
 
         <div className="section code-section">
           <div className="section-header">
+            <h3 className="section-title">Generated Code Viewer</h3>
             <button 
               className="quality-button"
               onClick={handleCodeQuality}

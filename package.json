@@ -6,17 +6,18 @@
     "@testing-library/jest-dom": "^5.17.0",
     "@testing-library/react": "^13.4.0",
     "@testing-library/user-event": "^13.5.0",
+    "archiver": "^7.0.1",
     "axios": "^1.8.4",
     "concurrently": "^7.6.0",
     "cors": "^2.8.5",
     "express": "^4.17.1",
     "jszip": "^3.10.1",
+    "node-fetch": "^2.6.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-json-view": "^1.21.3",
     "react-scripts": "5.0.1",
-    "web-vitals": "^2.1.4",
-    "node-fetch": "^2.6.1"
+    "web-vitals": "^2.1.4"
   },
   "scripts": {
     "start": "react-scripts start",

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { exportFigmaImage, fetchFigmaFile } from '../services/figmaService';
 import { generateReactCode, runReactApp } from '../services/codeGeneratorService';
 import FileTree from './FileTree';
+import '../styles/InputRow.css';
 
 const InputRow = ({ onImageLoad, onJsonLoad, onCodeGenerate, onFolderUpload }) => {
   console.log('All env vars:', process.env);
@@ -320,38 +321,71 @@ const InputRow = ({ onImageLoad, onJsonLoad, onCodeGenerate, onFolderUpload }) =
     }
   };
 
+  const handleDownload = async () => {
+    try {
+      const response = await fetch('/api/download-app');
+      if (!response.ok) {
+        throw new Error('Failed to download app');
+      }
+      
+      // Get the blob from the response
+      const blob = await response.blob();
+      
+      // Create a URL for the blob
+      const url = window.URL.createObjectURL(blob);
+      
+      // Create a temporary link element
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'reactapp.zip';
+      
+      // Append to body, click, and remove
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Clean up the URL
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error downloading app:', error);
+      alert('Failed to download the app. Please try again.');
+    }
+  };
+
   return (
     <div className="input-container">
       <div className="input-row">
         <div className="figma-section">
-          <div className="input-group">
-            <label>Access Token</label>
-            <input 
-              type="text" 
-              value={accessToken}
-              onChange={(e) => setAccessToken(e.target.value)}
-              className="input-field"
-            />
-          </div>
-          <div className="input-group">
-            <label>File Key</label>
-            <input 
-              type="text" 
-              value={fileKey}
-              onChange={(e) => setFileKey(e.target.value)}
-              className="input-field"
-            />
-          </div>
-          <div className="input-group">
-            <label>Node ID</label>
-            <input 
-              type="text" 
-              value={nodeId}
-              onChange={(e) => setNodeId(e.target.value)}
-              className="input-field"
-            />
-          </div>
-          <div className="button-group">
+          <h3>Figma Configuration</h3>
+          <div className="framework-controls">
+            <div className="input-group">
+              <label>Access Token</label>
+              <input 
+                type="text" 
+                value={accessToken}
+                onChange={(e) => setAccessToken(e.target.value)}
+                className="input-field"
+              />
+            </div>
+            <div className="input-group">
+              <label>File Key</label>
+              <input 
+                type="text" 
+                value={fileKey}
+                onChange={(e) => setFileKey(e.target.value)}
+                className="input-field"
+              />
+            </div>
+            <div className="input-group">
+              <label>Node ID</label>
+              <input 
+                type="text" 
+                value={nodeId}
+                onChange={(e) => setNodeId(e.target.value)}
+                className="input-field"
+              />
+            </div>
+            <div className="button-group">
             <button 
               className="load-button"
               onClick={handleLoadFigma}
@@ -359,62 +393,61 @@ const InputRow = ({ onImageLoad, onJsonLoad, onCodeGenerate, onFolderUpload }) =
             >
               {loadingFigma ? 'Loading...' : 'Load Figma'}
             </button>
-            {imageLoaded && (
-              <>
-                <button 
-                  className="load-button json-button"
-                  onClick={handleLoadJson}
-                  disabled={loadingJson}
-                >
-                  {loadingJson ? 'Loading...' : 'Load JSON'}
-                </button>
-                {jsonData && (
-                  <button 
-                    className="load-button image-button"
-                    onClick={handleLoadImages}
-                    disabled={loadingImages}
-                  >
-                    {loadingImages ? 'Loading...' : 'Load Images'}
-                  </button>
-                )}
-              </>
-            )}
+            <button 
+              className="load-button json-button"
+              onClick={handleLoadJson}
+              disabled={loadingJson || !imageLoaded}
+            >
+              {loadingJson ? 'Loading...' : 'Load JSON'}
+            </button>
+            <button 
+              className="load-button image-button"
+              onClick={handleLoadImages}
+              disabled={loadingImages || !jsonData}
+            >
+              {loadingImages ? 'Loading...' : 'Load Images'}
+            </button>
           </div>
+          </div>
+
         </div>
+
         <div className="separator"></div>
+
         <div className="framework-section">
-          <div className="input-group">
-            <label>Select Framework</label>
-            <div className="framework-controls">
-              <select 
-                className="framework-select"
-                value={selectedFramework}
-                onChange={(e) => setSelectedFramework(e.target.value)}
-              >
-                {frameworks.map(fw => (
-                  <option key={fw.value} value={fw.value}>{fw.label}</option>
-                ))}
-              </select>
-              <button 
-                className="generate-button"
-                onClick={handleGenerateCode}
-                disabled={!jsonData || generatingCode}
-              >
-                {generatingCode ? 'Generating...' : 'Generate Code'}
-              </button>
-              <button
-                className="run-button"
-                onClick={handleRunApp}
-                disabled={runningApp || !jsonData}
-              >
-                {runningApp ? 'Starting App...' : 'Run Application'}
-              </button>
-            </div>
+          <h3>Code Generation</h3>
+          <div className="framework-controls">
+            <select 
+              className="framework-select"
+              value={selectedFramework}
+              onChange={(e) => setSelectedFramework(e.target.value)}
+            >
+              {frameworks.map(fw => (
+                <option key={fw.value} value={fw.value}>{fw.label}</option>
+              ))}
+            </select>
+            <button 
+              className="generate-button"
+              onClick={handleGenerateCode}
+              disabled={!jsonData || generatingCode}
+            >
+              {generatingCode ? 'Generating...' : 'Generate Code'}
+            </button>
+            <button
+              className="run-button"
+              onClick={handleRunApp}
+              disabled={runningApp || !jsonData}
+              data-loading={runningApp}
+            >
+              {runningApp ? 'Starting App...' : 'Run Application'}
+            </button>
           </div>
         </div>
+
         <div className="separator"></div>
+
         <div className="import-section">
-          <label>Import External UI</label>
+          <h3>External UI Import</h3>
           <div className="import-controls">
             <button 
               className="import-button"
@@ -422,48 +455,61 @@ const InputRow = ({ onImageLoad, onJsonLoad, onCodeGenerate, onFolderUpload }) =
             >
               Import UI code from other tool
             </button>
-            {showUpload && (
-              <div className="upload-overlay">
-                <div className="upload-content">
-                  <div className="upload-header">
-                    <h3>Import UI Code</h3>
-                    <button 
-                      className="close-button"
-                      onClick={() => setShowUpload(false)}
-                    >
-                      ×
-                    </button>
-                  </div>
-                  <div className="upload-body">
-                    <div className="upload-zone" 
-                      onDragOver={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                      }}
-                      onDrop={handleDrop}
-                    >
-                      <input
-                        type="file"
-                        id="folder-upload"
-                        className="file-input"
-                        onChange={handleFileUpload}
-                        webkitdirectory=""
-                        directory=""
-                        multiple
-                      />
-                      <label htmlFor="folder-upload" className="file-label">
-                        <span className="upload-icon">📁</span>
-                        <span>Drop folder here or click to upload</span>
-                        <span className="file-hint">Select a project folder</span>
-                      </label>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
+          </div>
+        </div>
+
+        <div className="separator"></div>
+
+        <div className="download-section">
+          <div className="download-controls"> 
+            <button
+              className="download-button"
+              onClick={handleDownload}
+              title="Download Generated App"
+            >Download Generated App</button>
           </div>
         </div>
       </div>
+
+      {showUpload && (
+        <div className="upload-overlay">
+          <div className="upload-content">
+            <div className="upload-header">
+              <h3>Import UI Code</h3>
+              <button 
+                className="close-button"
+                onClick={() => setShowUpload(false)}
+              >
+                ×
+              </button>
+            </div>
+            <div className="upload-body">
+              <div className="upload-zone" 
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+                onDrop={handleDrop}
+              >
+                <input
+                  type="file"
+                  id="folder-upload"
+                  className="file-input"
+                  onChange={handleFileUpload}
+                  webkitdirectory=""
+                  directory=""
+                  multiple
+                />
+                <label htmlFor="folder-upload" className="file-label">
+                  <span className="upload-icon">📁</span>
+                  <span>Drop folder here or click to upload</span>
+                  <span className="file-hint">Select a project folder</span>
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

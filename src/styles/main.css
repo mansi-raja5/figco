@@ -1,14 +1,12 @@
 .input-row {
   display: flex;
   gap: 1.5rem;
-  padding: 10px 1.5rem;
   background: #f5f5f5;
-  align-items: flex-end;
 }
 
 .figma-section {
   display: flex;
-  gap: 1.5rem;
+  gap: 8px;
   align-items: flex-end;
 }
 
@@ -185,10 +183,9 @@
 
 /* Update separator styling */
 .separator {
-  width: 2px;
+  width: 4px;
   background: #ddd;
-  margin: 0 1.5rem;
-  height: 65px; /* Adjusted to match total height including label */
+  height: 83px;
 }
 
 .framework-section {
@@ -237,12 +234,23 @@
 .section-header {
   padding: 0.5rem 1rem;
   display: flex;
-  justify-content: flex-end;
   align-items: center;
-  gap: 1rem;
+  gap: 0.75rem;
   background: #f0f0f0;
   border-bottom: 1px solid #ddd;
   min-height: 45px;
+}
+
+.section-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 500;
+  color: #2c3e50;
+  flex: 1;
+}
+
+.section-header .quality-button {
+  margin-left: auto;
 }
 
 .fullscreen-button {
@@ -257,6 +265,7 @@
   align-items: center;
   justify-content: center;
   transition: all 0.2s ease;
+  min-width: 40px;
 }
 
 .fullscreen-button:hover {
@@ -566,7 +575,6 @@
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
-  min-width: 250px;
 }
 
 .import-section label {
