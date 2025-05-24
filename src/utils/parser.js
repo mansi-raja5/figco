@@ -89,22 +89,75 @@ export const parseNodeToComponent = (node) => {
         : node.fills?.[0]?.type === 'IMAGE'
         ? `background-image: url('/images/Image_${node.fills[0].imageRef}.png')`
         : '';
+      
+      // Check if the rectangle is clickable (has onClick event or is marked as interactive)
+      const isClickable = node.name.toLowerCase().includes('button') || 
+                         node.reactions?.length > 0 || 
+                         node.name.toLowerCase().includes('clickable');
+      
+      if (isClickable) {
+        const buttonStyles = {
+          ...generateStyles(node),
+          cursor: 'pointer',
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '8px 16px',
+          border: 'none',
+          outline: 'none',
+          backgroundColor: node.fills?.[0]?.type === 'SOLID' ? parseColor(node.fills[0].color) : '#007bff',
+          color: '#ffffff',
+          borderRadius: node.cornerRadius ? `${node.cornerRadius}px` : '4px',
+          transition: 'background-color 0.2s ease',
+        };
+        const buttonStyleString = Object.entries(buttonStyles)
+          .filter(([_, value]) => value !== undefined)
+          .map(([key, value]) => `${key}: ${value}`)
+          .join('; ');
+        return `<button className="button" style="${buttonStyleString}">
+          ${node.children?.map(child => parseNodeToComponent(child)).join('') || node.name || 'Button'}
+        </button>`;
+      }
+      
       return `<div className="rectangle" style="${generateStyles(node)}; ${background}"></div>`;
 
     case 'TEXT':
+      const isHeading = node.name.toLowerCase().includes('heading') || 
+                       (node.style?.fontSize && node.style.fontSize >= 24) ||
+                       node.style?.fontWeight >= 600;
+      
       const textStyles = {
         fontSize: node.style?.fontSize ? `${node.style.fontSize}px` : 'inherit',
-        fontWeight: node.style?.fontWeight || 'normal',
+        fontWeight: node.style?.fontWeight || (isHeading ? '600' : 'normal'),
         fontFamily: node.style?.fontFamily || 'inherit',
         letterSpacing: node.style?.letterSpacing ? `${node.style.letterSpacing}px` : 'normal',
         lineHeight: node.style?.lineHeightPx ? `${node.style.lineHeightPx}px` : 'normal',
         textAlign: node.style?.textAlignHorizontal?.toLowerCase() || 'left',
         color: node.fills?.[0]?.type === 'SOLID' ? parseColor(node.fills[0].color) : 'inherit',
+        margin: isHeading ? '0 0 0.5em 0' : 'inherit',
       };
+      
       const textStyleString = Object.entries(textStyles)
         .filter(([_, value]) => value !== 'inherit' && value !== 'normal')
         .map(([key, value]) => `${key}: ${value}`)
         .join('; ');
+
+      if (isHeading) {
+        // Determine heading level based on font size or name
+        let headingLevel = 1;
+        if (node.style?.fontSize) {
+          if (node.style.fontSize < 30) headingLevel = 2;
+          if (node.style.fontSize < 24) headingLevel = 3;
+          if (node.style.fontSize < 20) headingLevel = 4;
+        }
+        // Check if heading level is specified in the name (h1, h2, etc.)
+        const headingMatch = node.name.match(/h[1-6]/i);
+        if (headingMatch) {
+          headingLevel = parseInt(headingMatch[0].charAt(1));
+        }
+        return `<h${headingLevel} className="heading" style="${textStyleString}">${node.characters || ''}</h${headingLevel}>`;
+      }
+
       return `<p className="text" style="${textStyleString}">${node.characters || ''}</p>`;
 
     case 'COMPONENT':
@@ -154,6 +207,68 @@ export const parseNodeToComponent = (node) => {
     case 'SHAPE':
       // Generic shape container
       return `<div className="shape" style="${generateStyles(node)}">${node.children?.map(child => parseNodeToComponent(child)).join('') || ''}</div>`;
+
+    case 'INPUT':
+      const inputStyles = {
+        ...generateStyles(node),
+        padding: '8px 12px',
+        border: '1px solid #ddd',
+        borderRadius: '4px',
+        fontSize: node.style?.fontSize ? `${node.style.fontSize}px` : '16px',
+      };
+      const inputStyleString = Object.entries(inputStyles)
+        .filter(([_, value]) => value !== undefined)
+        .map(([key, value]) => `${key}: ${value}`)
+        .join('; ');
+      return `<input
+        type="text"
+        className="input-field"
+        placeholder="${node.characters || ''}"
+        style="${inputStyleString}"
+      />`;
+
+    case 'COMBOBOX':
+      const selectStyles = {
+        ...generateStyles(node),
+        padding: '8px 12px',
+        border: '1px solid #ddd',
+        borderRadius: '4px',
+        fontSize: node.style?.fontSize ? `${node.style.fontSize}px` : '16px',
+        backgroundColor: 'white',
+      };
+      const selectStyleString = Object.entries(selectStyles)
+        .filter(([_, value]) => value !== undefined)
+        .map(([key, value]) => `${key}: ${value}`)
+        .join('; ');
+      // Extract options from node's children or use placeholder options
+      const options = node.children?.map(child => child.characters) || ['Option 1', 'Option 2'];
+      return `<select className="select-field" style="${selectStyleString}">
+        ${options.map(option => `<option value="${option}">${option}</option>`).join('\n')}
+      </select>`;
+
+    case 'RADIO':
+      const radioStyles = {
+        ...generateStyles(node),
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+      };
+      const radioStyleString = Object.entries(radioStyles)
+        .filter(([_, value]) => value !== undefined)
+        .map(([key, value]) => `${key}: ${value}`)
+        .join('; ');
+      const radioId = `radio-${node.id || Math.random().toString(36).substr(2, 9)}`;
+      return `<div style="${radioStyleString}">
+        <input
+          type="radio"
+          id="${radioId}"
+          name="${node.name || 'radio-group'}"
+          className="radio-input"
+        />
+        <label htmlFor="${radioId}" className="radio-label">
+          ${node.characters || 'Radio Option'}
+        </label>
+      </div>`;
 
     default:
       // For any unhandled node types, create a generic container
